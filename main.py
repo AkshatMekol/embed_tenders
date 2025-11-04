@@ -1,9 +1,9 @@
 import asyncio
 from tabulate import tabulate
-from tender_embedding.s3_utils import list_pdfs, download_pdf
-from tender_embedding.pdf_utils import process_pdf_to_subchunks
-from tender_embedding.embed_utils import embed_texts
-from tender_embedding.mongo_utils import get_tender_ids, insert_vectors, folder_exists_for_tender
+from utils.s3_utils import list_pdfs, download_pdf
+from utils.pdf_utils import process_pdf_to_subchunks
+from utils.embed_utils import embed_texts
+from utils.mongo_utils import get_tender_ids, insert_vectors, folder_exists_for_tender
 
 MIN_TENDER_VALUE = 1_000_000_000
 MAX_CONCURRENT_TENDERS = 2
