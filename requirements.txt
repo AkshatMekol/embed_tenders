@@ -1,0 +1,8 @@
+asyncio
+pdfplumber
+sentence-transformers
+aioboto3
+motor
+tabulate
+python-dotenv
+boto3
