@@ -1,8 +1,7 @@
-asyncio
 pdfplumber
 sentence-transformers
-aioboto3
-motor
+boto3
+pymongo
 tabulate
 python-dotenv
-boto3
+tqdm
