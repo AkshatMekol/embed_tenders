@@ -2,10 +2,10 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 
-from utils.s3_utils import list_pdfs_sync, download_pdf_sync
+from utils.s3_utils import list_pdfs, download_pdf
 from utils.pdf_utils import process_pdf_to_subchunks
 from utils.embed_utils import embed_texts
-from utils.mongo_utils import get_tender_ids_sync, insert_vectors_sync, folder_exists_for_tender_sync
+from utils.mongo_utils import get_tender_ids, insert_vectors, document_exists_for_tender
 
 MIN_TENDER_VALUE = 1_000_000_000
 MAX_PROCESSES = os.cpu_count()  # Use all CPUs
