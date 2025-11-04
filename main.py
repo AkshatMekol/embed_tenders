@@ -7,31 +7,27 @@ from utils.pdf_utils import process_pdf_to_subchunks
 from utils.embed_utils import embed_texts
 from utils.mongo_utils import get_tender_ids_sync, insert_vectors_sync, folder_exists_for_tender_sync
 
-# ================= CONFIG =================
 MIN_TENDER_VALUE = 1_000_000_000
 MAX_PROCESSES = os.cpu_count()  # Use all CPUs
 BATCH_SIZE = 512
 
-# ================= PROCESS SINGLE TENDER =================
 def process_single_tender(tender_id):
-    """Process one tender synchronously."""
     report = {"tender_id": tender_id, "processed_docs": 0, "skipped_docs": 0, "errors": []}
     try:
         print(f"[{tender_id}] 🚀 Starting tender")
         s3_prefix = f"tender-documents/{tender_id}/"
-        pdf_keys = list_pdfs_sync(s3_prefix)  # synchronous version
+        pdf_keys = list_pdfs(s3_prefix)   
         print(f"[{tender_id}] Found {len(pdf_keys)} PDFs")
 
         for key in pdf_keys:
             document_name = key.split("/")[-1]
-            folder_name = key.split("/")[1]
 
-            if folder_exists_for_tender_sync(tender_id, document_name):
+            if document_exists_for_tender(tender_id, document_name):
                 report["skipped_docs"] += 1
                 continue
 
             try:
-                pdf_stream = download_pdf_sync(key)
+                pdf_stream = download_pdf(key)
                 sub_chunks = process_pdf_to_subchunks(pdf_stream, document_name)
                 if not sub_chunks:
                     report["skipped_docs"] += 1
@@ -43,7 +39,6 @@ def process_single_tender(tender_id):
                 docs = [
                     {
                         "tender_id": tender_id,
-                        "folder_name": folder_name,
                         "document_name": sc["document_name"],
                         "page": sc["page"],
                         "position": sc["position"],
@@ -55,7 +50,7 @@ def process_single_tender(tender_id):
                     for sc, emb in zip(sub_chunks, embeddings)
                 ]
 
-                insert_vectors_sync(docs)
+                insert_vectors(docs)
                 report["processed_docs"] += 1
 
             except Exception as e_doc:
@@ -72,7 +67,7 @@ def process_single_tender(tender_id):
 # ================= MAIN FUNCTION =================
 def main():
     print("🔍 Fetching tender IDs from MongoDB...")
-    tender_ids = get_tender_ids_sync(MIN_TENDER_VALUE)
+    tender_ids = get_tender_ids(MIN_TENDER_VALUE)
     print(f"📦 Found {len(tender_ids)} tenders above {MIN_TENDER_VALUE}\n")
 
     print(f"🧠 Using {MAX_PROCESSES} parallel processes\n")
