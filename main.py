@@ -8,15 +8,22 @@ from utils.embed_utils import embed_texts
 from utils.mongo_utils import get_tender_ids, insert_vectors, document_exists_for_tender
 
 MIN_TENDER_VALUE = 1_000_000_000
-MAX_PROCESSES = os.cpu_count()  # Use all CPUs
+MAX_PROCESSES = 16  
 BATCH_SIZE = 512
 
 def process_single_tender(tender_id):
-    report = {"tender_id": tender_id, "processed_docs": 0, "skipped_docs": 0, "errors": []}
+    report = {
+        "tender_id": tender_id,
+        "processed_docs": 0,
+        "skipped_docs": 0,   
+        "empty_docs": 0,     
+        "errors": []
+    }
+
     try:
         print(f"[{tender_id}] 🚀 Starting tender")
         s3_prefix = f"tender-documents/{tender_id}/"
-        pdf_keys = list_pdfs(s3_prefix)   
+        pdf_keys = list_pdfs(s3_prefix)
         print(f"[{tender_id}] Found {len(pdf_keys)} PDFs")
 
         for key in pdf_keys:
@@ -29,8 +36,9 @@ def process_single_tender(tender_id):
             try:
                 pdf_stream = download_pdf(key)
                 sub_chunks = process_pdf_to_subchunks(pdf_stream, document_name)
+
                 if not sub_chunks:
-                    report["skipped_docs"] += 1
+                    report["empty_docs"] += 1
                     continue
 
                 texts = [sc["data"] for sc in sub_chunks]
@@ -56,7 +64,7 @@ def process_single_tender(tender_id):
             except Exception as e_doc:
                 report["errors"].append(f"Doc {document_name}: {e_doc}")
 
-        print(f"[{tender_id}] 🏁 Finished tender - Processed: {report['processed_docs']}, Skipped: {report['skipped_docs']}, Errors: {len(report['errors'])}")
+        print(f"[{tender_id}] 🏁 Finished tender - Processed: {report['processed_docs']}, Skipped: {report['skipped_docs']}, Empty: {report['empty_docs']}, Errors: {len(report['errors'])}")
 
     except Exception as e:
         report["errors"].append(str(e))
@@ -64,7 +72,6 @@ def process_single_tender(tender_id):
 
     return report
 
-# ================= MAIN FUNCTION =================
 def main():
     print("🔍 Fetching tender IDs from MongoDB...")
     tender_ids = get_tender_ids(MIN_TENDER_VALUE)
@@ -74,20 +81,21 @@ def main():
 
     reports = []
     with ProcessPoolExecutor(max_workers=MAX_PROCESSES) as executor:
-        # Submit all tasks
         futures = {executor.submit(process_single_tender, tid): tid for tid in tender_ids}
 
-        # Use tqdm to track progress
         for f in tqdm(as_completed(futures), total=len(futures), desc="Processing tenders"):
             report = f.result()
             reports.append(report)
 
-    # Summary
     total_docs = sum(r["processed_docs"] for r in reports)
     total_skipped = sum(r["skipped_docs"] for r in reports)
+    total_empty = sum(r["empty_docs"] for r in reports)
     total_errors = sum(len(r["errors"]) for r in reports)
-    print(f"\n✅ All tenders processed! Total docs: {total_docs}, Skipped: {total_skipped}, Errors: {total_errors}")
+    print(f"\n✅ All tenders processed!")
+    print(f"Total docs processed: {total_docs}")
+    print(f"Skipped (already in DB): {total_skipped}")
+    print(f"Empty PDFs (no subchunks): {total_empty}")
+    print(f"Errors: {total_errors}")
 
 if __name__ == "__main__":
     main()
-
