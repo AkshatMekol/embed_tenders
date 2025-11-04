@@ -21,7 +21,6 @@ async def process_single_tender(tender_id):
 
             for key in pdf_keys:
                 document_name = key.split("/")[-1]
-                folder_name = key.split("/")[1]
 
                 if await folder_exists_for_tender(tender_id, document_name):
                     continue
@@ -37,7 +36,6 @@ async def process_single_tender(tender_id):
                 docs = [
                     {
                         "tender_id": tender_id,
-                        "folder_name": folder_name,
                         "document_name": sc["document_name"],
                         "page": sc["page"],
                         "position": sc["position"],
@@ -51,7 +49,6 @@ async def process_single_tender(tender_id):
                 await insert_vectors(docs)
 
         except Exception as e:
-            # You can log exceptions somewhere if needed
             return tender_id, 0
 
         return tender_id, 1  # tender processed successfully
