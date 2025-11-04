@@ -1,22 +1,27 @@
-import motor.motor_asyncio
+from pymongo import MongoClient
 from .config import MONGO_URI, DB_NAME, TENDERS_COLLECTION, VECTOR_COLLECTION
 
-client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URI)
+client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
 tenders_collection = db[TENDERS_COLLECTION]
 vector_collection = db[VECTOR_COLLECTION]
 
-async def get_tender_ids(min_value):
-    cursor = tenders_collection.find({"tender_value": {"$gte": min_value}}, {"_id": 1})
-    return [str(doc["_id"]) async for doc in cursor]
+def get_tender_ids(min_value):
+    """Return a list of tender IDs with tender_value >= min_value."""
+    cursor = tenders_collection.find(
+        {"tender_value": {"$gte": min_value}},
+        {"_id": 1}
+    )
+    return [str(doc["_id"]) for doc in cursor]
 
-async def insert_vectors(docs):
+def insert_vectors(docs):
+    """Insert a list of documents into vector collection."""
     if docs:
-        await vector_collection.insert_many(docs)
+        vector_collection.insert_many(docs)
 
-
-async def folder_exists_for_tender(tender_id: str, document_name: str) -> bool:
-    existing = await vector_collection.find_one({
+def document_exists_for_tender(tender_id: str, document_name: str) -> bool:
+    """Check if a document already exists for a tender."""
+    existing = vector_collection.find_one({
         "tender_id": tender_id,
         "document_name": document_name
     })
