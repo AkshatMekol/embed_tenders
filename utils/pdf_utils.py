@@ -34,6 +34,7 @@ def process_pdf_to_subchunks(pdf_stream, document_name):
     all_sub_chunks = []
     with pdfplumber.open(pdf_stream) as pdf:
         for page_num, page in enumerate(pdf.pages, start=1):
+            print(f"[Processing] Page {page_num}/{len(pdf.pages)}") 
             elements = extract_page_content(page)
             for el in elements:
                 scs = split_position_to_subchunks(el, page_num)
