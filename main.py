@@ -21,7 +21,7 @@ def process_single_tender(tender_id):
     }
 
     try:
-        print(f"[{tender_id}] 🚀 Starting tender")
+        print(f"[{tender_id}] Starting tender")
         s3_prefix = f"tender-documents/{tender_id}/"
         pdf_keys = list_pdfs(s3_prefix)
         print(f"[{tender_id}] Found {len(pdf_keys)} PDFs")
@@ -64,7 +64,7 @@ def process_single_tender(tender_id):
             except Exception as e_doc:
                 report["errors"].append(f"Doc {document_name}: {e_doc}")
 
-        print(f"[{tender_id}] 🏁 Finished tender - Processed: {report['processed_docs']}, Skipped: {report['skipped_docs']}, Empty: {report['empty_docs']}, Errors: {len(report['errors'])}")
+        print(f"[{tender_id}] Finished tender - Processed: {report['processed_docs']}, Skipped: {report['skipped_docs']}, Empty: {report['empty_docs']}, Errors: {len(report['errors'])}")
 
     except Exception as e:
         report["errors"].append(str(e))
@@ -75,9 +75,9 @@ def process_single_tender(tender_id):
 def main():
     print("🔍 Fetching tender IDs from MongoDB...")
     tender_ids = get_tender_ids(MIN_TENDER_VALUE)
-    print(f"📦 Found {len(tender_ids)} tenders above {MIN_TENDER_VALUE}\n")
+    print(f"Found {len(tender_ids)} tenders above {MIN_TENDER_VALUE}\n")
 
-    print(f"🧠 Using {MAX_PROCESSES} parallel processes\n")
+    print(f"Using {MAX_PROCESSES} parallel processes\n")
 
     reports = []
     with ProcessPoolExecutor(max_workers=MAX_PROCESSES) as executor:
@@ -91,7 +91,7 @@ def main():
     total_skipped = sum(r["skipped_docs"] for r in reports)
     total_empty = sum(r["empty_docs"] for r in reports)
     total_errors = sum(len(r["errors"]) for r in reports)
-    print(f"\n✅ All tenders processed!")
+    print(f"\nAll tenders processed!")
     print(f"Total docs processed: {total_docs}")
     print(f"Skipped (already in DB): {total_skipped}")
     print(f"Empty PDFs (no subchunks): {total_empty}")
