@@ -63,6 +63,10 @@ def query_groq(pil_image_bytes: bytes, prompt: str) -> str:
     )
     return response.choices[0].message.content.strip()
 
+def is_scanned_page(page):
+    text = page.extract_text() or ""
+    return len(text.strip()) < 10
+
 def process_scanned_page_worker(args):
     page_num, pdf_bytes = args
     try:
