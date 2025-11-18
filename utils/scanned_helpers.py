@@ -5,9 +5,9 @@ import time
 import base64
 import requests
 import pdfplumber
-from io import BytesIO
 from PIL import Image
 from groq import Groq
+from io import BytesIO
 from .config import GROQ_API_KEY, GROQ_OCR_PROMPT, DEEPSEEK_API_URL, DEEPSEEK_API_KEY, DEEPSEEK_TRANSLATE_PROMPT
 
 groq_client = Groq(api_key=GROQ_API_KEY)
