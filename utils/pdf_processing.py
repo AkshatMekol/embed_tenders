@@ -1,3 +1,5 @@
+import pdfplumber
+from io import BytesIO
 from multiprocessing import Pool
 
 def process_pdf(pdf_stream):
