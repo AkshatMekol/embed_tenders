@@ -56,6 +56,7 @@ def query_deepseek(prompt, retries=3, delay=2):
                 raise
 
 def query_groq(pil_image_bytes: bytes, prompt: str) -> str:
+    groq_client = Groq(api_key=GROQ_API_KEY)
     img_base64 = base64.b64encode(pil_image_bytes).decode("utf-8")
     image_data_url = f"data:image/jpeg;base64,{img_base64}"
 
