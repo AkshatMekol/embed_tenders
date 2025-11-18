@@ -1,3 +1,5 @@
+from multiprocessing import Pool
+
 def process_pdf(pdf_stream):
     pdf_bytes = pdf_stream.read()
 
@@ -27,24 +29,24 @@ def process_pdf(pdf_stream):
     scanned_pages_count = len(scanned_jobs)
     regular_pages_count = total_pages - scanned_pages_count
 
-    # if scanned_jobs:
-    #     groq_results = []
-    #     for args in scanned_jobs:
-    #         result = process_scanned_page_worker(args)
-    #         groq_results.append(result)
+    if scanned_jobs:
+        groq_results = []
+        for args in scanned_jobs:
+            result = process_scanned_page_worker(args)
+            groq_results.append(result)
 
-    #     deepseek_jobs = [(res["page"], res["raw_content"]) for res in groq_results]
+        deepseek_jobs = [(res["page"], res["raw_content"]) for res in groq_results]
 
-    #     with Pool(MAX_PROCESSES_DEEPSEEK) as pool:
-    #         deepseek_results = pool.map(deepseek_translate_worker, deepseek_jobs)
+        with Pool(MAX_PROCESSES_DEEPSEEK) as pool:
+            deepseek_results = pool.map(deepseek_translate_worker, deepseek_jobs)
 
-    #     for res in deepseek_results:
-    #         sub_chunks = split_text_to_subchunks(
-    #             res["translated_text"], res["page"], 1, "text", is_scanned=True
-    #         )
-    #         all_sub_chunks.extend(sub_chunks)
-    #         gc.collect()
-    #         print_memory_usage(f"after processing translated page {res['page']}")
+        for res in deepseek_results:
+            sub_chunks = split_text_to_subchunks(
+                res["translated_text"], res["page"], 1, "text", is_scanned=True
+            )
+            all_sub_chunks.extend(sub_chunks)
+            gc.collect()
+            print_memory_usage(f"after processing translated page {res['page']}")
 
     return {
         "chunks": all_sub_chunks,
