@@ -76,7 +76,6 @@ def process_single_tender(tender_id):
 
     return report
 
-
 def main():
     print("Fetching tender IDs from MongoDB...")
     tender_ids = get_tender_ids(MIN_TENDER_VALUE)
@@ -84,12 +83,26 @@ def main():
     print(f"Using {MAX_PROCESSES} parallel processes\n")
 
     reports = []
-    with ProcessPoolExecutor(max_workers=MAX_PROCESSES) as executor:
-        futures = {executor.submit(process_single_tender, tid): tid for tid in tender_ids}
 
-        for f in tqdm(as_completed(futures), total=len(futures), desc="Processing tenders"):
-            report = f.result()
-            reports.append(report)
+    try:
+        with ProcessPoolExecutor(max_workers=MAX_PROCESSES) as executor:
+            futures = {executor.submit(process_single_tender, tid): tid for tid in tender_ids}
+
+            try:
+                for f in tqdm(as_completed(futures), total=len(futures), desc="Processing tenders"):
+                    report = f.result()
+                    reports.append(report)
+
+            except KeyboardInterrupt:
+                print("\n⚠️ Ctrl+C detected! Shutting down executor...")
+                executor.shutdown(wait=False, cancel_futures=True)
+                # Optional: terminate child processes forcefully
+                for f in futures:
+                    f.cancel()
+                raise
+
+    except KeyboardInterrupt:
+        print("✅ Stopped by user.")
 
     total_docs = sum(r["processed_docs"] for r in reports)
     total_skipped = sum(r["skipped_docs"] for r in reports)
@@ -98,7 +111,7 @@ def main():
     total_regular_pages = sum(r["regular_pages"] for r in reports)
     total_errors = sum(len(r["errors"]) for r in reports)
 
-    print(f"\nAll tenders processed!")
+    print(f"\nTenders processed before stop:")
     print(f"Total docs processed: {total_docs}")
     print(f"Skipped (already in DB): {total_skipped}")
     print(f"Empty PDFs (no subchunks): {total_empty}")
