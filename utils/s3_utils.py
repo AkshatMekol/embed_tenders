@@ -1,6 +1,6 @@
 import boto3
 from io import BytesIO
-from .config import (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)
+from .config import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
 
 def get_s3_client():
     return boto3.client(
