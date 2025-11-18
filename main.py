@@ -107,6 +107,5 @@ def main():
     print(f"Regular pages total: {total_regular_pages}")
     print(f"Errors: {total_errors}")
 
-
 if __name__ == "__main__":
     main()
