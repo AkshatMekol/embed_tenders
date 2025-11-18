@@ -5,8 +5,7 @@ from io import BytesIO
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from utils.s3_utils import list_s3_pdfs, fetch_pdf
 from utils.pdf_processing import process_pdf
-from utils.embed_utils import embed_and_upload_chunks
-from utils.mongo_utils import get_tender_ids, vector_collection
+from utils.mongo_utils import get_tender_ids, vector_collection, embed_and_upload_chunks
 
 MIN_TENDER_VALUE = 1_000_000_000
 MAX_PROCESSES = 2
