@@ -8,7 +8,7 @@ from utils.pdf_processing import process_pdf
 from utils.mongo_utils import get_tender_ids, vector_collection, embed_and_upload_chunks
 
 MIN_TENDER_VALUE = 1_000_000_000
-MAX_PROCESSES = 2
+MAX_PROCESSES = 1
 BATCH_SIZE = 512
 
 def process_single_tender(tender_id):
