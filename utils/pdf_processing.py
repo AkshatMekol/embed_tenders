@@ -1,6 +1,11 @@
+import gc
 import pdfplumber
 from io import BytesIO
 from multiprocessing import Pool
+from utils.config import MAX_PROCESSES_DEEPSEEK
+from utils.chunking import split_text_to_subchunks
+from utils.regular_helpers import extract_page_content, elements_to_positions
+from utils.scanned_helpers import is_scanned_page, process_scanned_page_worker, deepseek_translate_worker
 
 def process_pdf(pdf_stream):
     pdf_bytes = pdf_stream.read()
