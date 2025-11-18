@@ -6,9 +6,28 @@ from .config import MONGO_URI, DB_NAME, VECTOR_COLLECTION, TENDERS_COLLECTION, E
 mongo = MongoClient(MONGO_URI)
 db = mongo[DB_NAME]
 vector_collection = db[VECTOR_COLLECTION]
+tenders_collection = db[TENDER_COLLECTION]
 
 model = SentenceTransformer(EMBEDDING_MODEL_NAME, device=device)
 
+def get_tender_ids(min_value: int):
+    query = {
+        "tender_value": {
+            "$gte": min_value,
+            "$lte": 100_000_000_000_000  
+        }
+    }
+    projection = {"_id": 1}
+
+    cursor = tenders_collection.find(query, projection)
+    return [str(doc["_id"]) for doc in cursor]
+
+def pdf_exists(tender_id: str, document_name: str) -> bool:
+    return vector_collection.count_documents({
+        "tender_id": tender_id,
+        "document_name": document_name
+    }) > 0
+    
 def embed_and_upload_chunks(chunks, document_name, tender_id):
     if not chunks:
         return
