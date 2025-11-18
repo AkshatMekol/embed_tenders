@@ -1,7 +1,8 @@
-import base64
 import io
 import gc
 import re
+import time
+import base64
 import requests
 import pdfplumber
 from io import BytesIO
