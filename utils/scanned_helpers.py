@@ -6,7 +6,10 @@ import requests
 import pdfplumber
 from io import BytesIO
 from PIL import Image
+from groq import Groq
 from .config import GROQ_API_KEY, GROQ_OCR_PROMPT, DEEPSEEK_API_URL DEEPSEEK_API_KEY, DEEPSEEK_TRANSLATE_PROMPT
+
+groq_client = Groq(api_key=GROQ_API_KEY)
 
 def clean_llm_output(text: str) -> str:
     text = re.sub(r"```(?:markdown)?\s*", "", text)
@@ -56,7 +59,6 @@ def query_deepseek(prompt, retries=3, delay=2):
                 raise
 
 def query_groq(pil_image_bytes: bytes, prompt: str) -> str:
-    groq_client = Groq(api_key=GROQ_API_KEY)
     img_base64 = base64.b64encode(pil_image_bytes).decode("utf-8")
     image_data_url = f"data:image/jpeg;base64,{img_base64}"
 
