@@ -1,3 +1,13 @@
+import base64
+import io
+import gc
+import re
+import requests
+import pdfplumber
+from io import BytesIO
+from PIL import Image
+from .config import GROQ_API_KEY, GROQ_OCR_PROMPT, DEEPSEEK_API_URL DEEPSEEK_API_KEY, DEEPSEEK_TRANSLATE_PROMPT
+
 def clean_llm_output(text: str) -> str:
     text = re.sub(r"```(?:markdown)?\s*", "", text)
     text = re.sub(r"\s*```", "", text)
