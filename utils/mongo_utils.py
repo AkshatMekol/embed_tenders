@@ -6,7 +6,7 @@ from .config import MONGO_URI, DB_NAME, VECTOR_COLLECTION, TENDERS_COLLECTION, E
 mongo = MongoClient(MONGO_URI)
 db = mongo[DB_NAME]
 vector_collection = db[VECTOR_COLLECTION]
-tenders_collection = db[TENDER_COLLECTION]
+tenders_collection = db[TENDERS_COLLECTION]
 
 model = SentenceTransformer(EMBEDDING_MODEL_NAME, device=device)
 
