@@ -9,11 +9,11 @@ def process_pdf(pdf_stream):
 
     with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
         total_pages = len(pdf.pages)
-        print(f"📄 Total pages: {total_pages}")
+        print(f"Total pages: {total_pages}")
 
         for i, page in enumerate(pdf.pages):
             scanned = is_scanned_page(page)
-            print(f"\n📄 Processing Page {i+1}: {'SCANNED' if scanned else 'TEXT'}")
+            print(f"\nProcessing Page {i+1}: {'SCANNED' if scanned else 'TEXT'}")
 
             if scanned:
                 scanned_jobs.append((i, pdf_bytes))
@@ -46,7 +46,6 @@ def process_pdf(pdf_stream):
             )
             all_sub_chunks.extend(sub_chunks)
             gc.collect()
-            print_memory_usage(f"after processing translated page {res['page']}")
 
     return {
         "chunks": all_sub_chunks,
