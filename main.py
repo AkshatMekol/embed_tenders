@@ -100,9 +100,8 @@ def main():
                 raise
 
     except KeyboardInterrupt:
-        print("✅ Stopped by user.")
+        print("Stopped by user.")
 
-    # Wait for GPU embedding queue to finish
     embedding_queue = embedding_thread._target.__self__.embedding_queue
     embedding_queue.put(None)  # shutdown signal
     embedding_thread.join()
