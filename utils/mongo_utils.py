@@ -1,5 +1,6 @@
 import gc
 from pymongo import MongoClient
+from sentence_transformers import SentenceTransformer
 from .config import MONGO_URI, DB_NAME, VECTOR_COLLECTION, TENDERS_COLLECTION, EMBEDDING_MODEL_NAME, device, BATCH_SIZE
 
 mongo = MongoClient(MONGO_URI)
@@ -7,11 +8,13 @@ db = mongo[DB_NAME]
 vector_collection = db[VECTOR_COLLECTION]
 tenders_collection = db[TENDERS_COLLECTION]
 
+model = SentenceTransformer(EMBEDDING_MODEL_NAME, device=device)
+
 def get_tender_ids(min_value: int):
     query = {
         "tender_value": {
             "$gte": min_value,
-            "$lte": 100_000_000_000_000
+            "$lte": 100_000_000_000_000  # Arbitrary max
         }
     }
     projection = {"_id": 1}
@@ -24,12 +27,9 @@ def pdf_exists(tender_id: str, document_name: str) -> bool:
         "document_name": document_name
     }) > 0
 
-def embed_and_upload_chunks(chunks, document_name, tender_id):
+def enqueue_chunks_for_embedding(chunks, document_name, tender_id):
     if not chunks:
         return
-
-    from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer(EMBEDDING_MODEL_NAME, device=device)
 
     for i in range(0, len(chunks), BATCH_SIZE):
         batch = chunks[i:i + BATCH_SIZE]
@@ -52,5 +52,4 @@ def embed_and_upload_chunks(chunks, document_name, tender_id):
 
         vector_collection.insert_many(docs)
 
-    del model
     gc.collect()
