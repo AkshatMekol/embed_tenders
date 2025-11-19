@@ -123,5 +123,4 @@ def main():
     print(f"Errors: {total_errors}")
 
 if __name__ == "__main__":
-    TENDER_ID = "6910f5f5b29e12b878b4f666"
     main()
