@@ -20,7 +20,7 @@ embedding_queue = Queue()
 def embedding_worker():
     while True:
         item = embedding_queue.get()
-        if item is None:  # shutdown signal
+        if item is None:  
             break
         chunks, document_name, tender_id = item
         if not chunks:
@@ -51,7 +51,6 @@ def embedding_worker():
         gc.collect()
         embedding_queue.task_done()
 
-# Start the embedding worker thread
 embedding_thread = Thread(target=embedding_worker, daemon=True)
 embedding_thread.start()
 
