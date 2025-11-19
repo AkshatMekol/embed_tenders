@@ -15,7 +15,7 @@ tenders_collection = db[TENDERS_COLLECTION]
 
 model = SentenceTransformer(EMBEDDING_MODEL_NAME, device=device)
 
-embedding_queue = Queue()
+embedding_queue = Queue(maxsize=100)
 
 def embedding_worker():
     while True:
