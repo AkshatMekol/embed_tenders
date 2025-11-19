@@ -77,7 +77,8 @@ def process_single_tender(tender_id):
 
 def main():
     print("Fetching tender IDs from MongoDB...")
-    tender_ids = get_tender_ids(MIN_TENDER_VALUE)
+    # tender_ids = get_tender_ids(MIN_TENDER_VALUE)
+    tender_ids = ["6910f5f5b29e12b878b4f666"]
     print(f"Found {len(tender_ids)} tenders above {MIN_TENDER_VALUE}\n")
     print(f"Using {MAX_PROCESSES} parallel CPU processes\n")
 
@@ -122,4 +123,5 @@ def main():
     print(f"Errors: {total_errors}")
 
 if __name__ == "__main__":
+    TENDER_ID = "6910f5f5b29e12b878b4f666"
     main()
