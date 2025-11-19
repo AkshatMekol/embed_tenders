@@ -1,7 +1,12 @@
+import os
 import gc
+from queue import Queue
+from threading import Thread
 from pymongo import MongoClient
 from sentence_transformers import SentenceTransformer
 from .config import MONGO_URI, DB_NAME, VECTOR_COLLECTION, TENDERS_COLLECTION, EMBEDDING_MODEL_NAME, device, BATCH_SIZE
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 mongo = MongoClient(MONGO_URI)
 db = mongo[DB_NAME]
@@ -10,13 +15,49 @@ tenders_collection = db[TENDERS_COLLECTION]
 
 model = SentenceTransformer(EMBEDDING_MODEL_NAME, device=device)
 
+# Embedding queue
+embedding_queue = Queue()
+
+def embedding_worker():
+    while True:
+        item = embedding_queue.get()
+        if item is None:  # shutdown signal
+            break
+        chunks, document_name, tender_id = item
+        if not chunks:
+            embedding_queue.task_done()
+            continue
+
+        for i in range(0, len(chunks), BATCH_SIZE):
+            batch = chunks[i:i + BATCH_SIZE]
+            texts = [c["data"] for c in batch]
+            embeddings = model.encode(texts, batch_size=BATCH_SIZE, show_progress_bar=False).tolist()
+
+            docs = []
+            for c, emb in zip(batch, embeddings):
+                docs.append({
+                    "tender_id": tender_id,
+                    "document_name": document_name,
+                    "page": c["page"],
+                    "position": c["position"],
+                    "sub_position": c["sub_position"],
+                    "type": c["type"],
+                    "is_scanned": c["is_scanned"],
+                    "text": c["data"],
+                    "embedding": emb
+                })
+
+            vector_collection.insert_many(docs)
+
+        gc.collect()
+        embedding_queue.task_done()
+
+# Start the embedding worker thread
+embedding_thread = Thread(target=embedding_worker, daemon=True)
+embedding_thread.start()
+
 def get_tender_ids(min_value: int):
-    query = {
-        "tender_value": {
-            "$gte": min_value,
-            "$lte": 100_000_000_000_000  # Arbitrary max
-        }
-    }
+    query = {"tender_value": {"$gte": min_value, "$lte": 100_000_000_000_000}}
     projection = {"_id": 1}
     cursor = tenders_collection.find(query, projection)
     return [str(doc["_id"]) for doc in cursor]
@@ -28,28 +69,4 @@ def pdf_exists(tender_id: str, document_name: str) -> bool:
     }) > 0
 
 def enqueue_chunks_for_embedding(chunks, document_name, tender_id):
-    if not chunks:
-        return
-
-    for i in range(0, len(chunks), BATCH_SIZE):
-        batch = chunks[i:i + BATCH_SIZE]
-        texts = [c["data"] for c in batch]
-        embeddings = model.encode(texts, batch_size=BATCH_SIZE, show_progress_bar=False).tolist()
-
-        docs = []
-        for c, emb in zip(batch, embeddings):
-            docs.append({
-                "tender_id": tender_id,
-                "document_name": document_name,
-                "page": c["page"],
-                "position": c["position"],
-                "sub_position": c["sub_position"],
-                "type": c["type"],
-                "is_scanned": c["is_scanned"],
-                "text": c["data"],
-                "embedding": emb
-            })
-
-        vector_collection.insert_many(docs)
-
-    gc.collect()
+    embedding_queue.put((chunks, document_name, tender_id))
