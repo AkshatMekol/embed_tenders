@@ -54,6 +54,9 @@ def process_pdf(pdf_stream):
             all_sub_chunks.extend(sub_chunks)
             gc.collect()
 
+    del pdf_bytes, scanned_jobs, groq_results
+    gc.collect()
+
     return {
         "chunks": all_sub_chunks,
         "scanned_pages": scanned_pages_count,
