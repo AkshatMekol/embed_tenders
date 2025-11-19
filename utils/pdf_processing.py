@@ -54,7 +54,9 @@ def process_pdf(pdf_stream):
             all_sub_chunks.extend(sub_chunks)
             gc.collect()
 
-    del pdf_bytes, scanned_jobs, groq_results
+    del pdf_bytes, scanned_jobs
+    if 'groq_results' in locals():
+        del groq_results
     gc.collect()
 
     return {
