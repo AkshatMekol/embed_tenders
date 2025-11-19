@@ -103,8 +103,11 @@ def main():
     except KeyboardInterrupt:
         print("Stopped by user.")
 
-    embedding_queue.put(None)  # shutdown signal
+    print("Waiting for embedding queue to finish...")
+    embedding_queue.join()
+    embedding_queue.put(None)
     embedding_thread.join()
+    print("Embedding thread has finished all work")
 
     total_docs = sum(r["processed_docs"] for r in reports)
     total_skipped = sum(r["skipped_docs"] for r in reports)
