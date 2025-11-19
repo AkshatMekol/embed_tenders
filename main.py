@@ -1,35 +1,14 @@
 import os
 import gc
 from tqdm import tqdm
-from io import BytesIO
-from queue import Queue
-from multiprocessing import Process, Event
 from concurrent.futures import ProcessPoolExecutor, as_completed
-
 from utils.s3_utils import list_s3_pdfs, fetch_pdf
 from utils.pdf_processing import process_pdf
-from utils.mongo_utils import get_tender_ids, vector_collection, enqueue_chunks_for_embedding
+from utils.mongo_utils import get_tender_ids, vector_collection, enqueue_chunks_for_embedding, embedding_thread
 
 MIN_TENDER_VALUE = 1_000_000_000
-MAX_CPU_PROCESSES = 4  
+MAX_PROCESSES = 4  
 BATCH_SIZE = 512
-
-# Queue for GPU embeddings
-embedding_queue = Queue(maxsize=1024)
-stop_event = Event()
-
-def gpu_worker():
-    print("🟢 GPU worker started")
-    while not stop_event.is_set() or not embedding_queue.empty():
-        try:
-            item = embedding_queue.get(timeout=1)
-            if item == "STOP":
-                break
-            chunks, document_name, tender_id = item
-            enqueue_chunks_for_embedding(chunks, document_name, tender_id)
-        except Exception:
-            continue
-    print("🛑 GPU worker stopped")
 
 def process_single_tender(tender_id):
     report = {
@@ -76,10 +55,9 @@ def process_single_tender(tender_id):
                     print(f"[{tender_id}] PDF {document_name} has no subchunks")
                     continue
 
-                # Send subchunks to GPU worker
-                embedding_queue.put((sub_chunks, document_name, tender_id))
-
+                enqueue_chunks_for_embedding(sub_chunks, document_name, tender_id)
                 report["processed_docs"] += 1
+
                 print(f"[{tender_id}] PDF {document_name} processed: Regular={regular_pages}, Scanned={scanned_pages}")
 
                 del pdf_stream, sub_chunks
@@ -101,16 +79,12 @@ def main():
     print("Fetching tender IDs from MongoDB...")
     tender_ids = get_tender_ids(MIN_TENDER_VALUE)
     print(f"Found {len(tender_ids)} tenders above {MIN_TENDER_VALUE}\n")
-    print(f"Using {MAX_CPU_PROCESSES} CPU processes\n")
+    print(f"Using {MAX_PROCESSES} parallel CPU processes\n")
 
     reports = []
 
-    # Start GPU worker
-    gpu_proc = Process(target=gpu_worker, daemon=True)
-    gpu_proc.start()
-
     try:
-        with ProcessPoolExecutor(max_workers=MAX_CPU_PROCESSES) as executor:
+        with ProcessPoolExecutor(max_workers=MAX_PROCESSES) as executor:
             futures = {executor.submit(process_single_tender, tid): tid for tid in tender_ids}
 
             try:
@@ -119,7 +93,7 @@ def main():
                     reports.append(report)
 
             except KeyboardInterrupt:
-                print("\n⚠️ Ctrl+C detected! Shutting down CPU executor...")
+                print("\n⚠️ Ctrl+C detected! Shutting down executor...")
                 executor.shutdown(wait=False, cancel_futures=True)
                 for f in futures:
                     f.cancel()
@@ -128,9 +102,10 @@ def main():
     except KeyboardInterrupt:
         print("✅ Stopped by user.")
 
-    stop_event.set()
-    embedding_queue.put("STOP")
-    gpu_proc.join()
+    # Wait for GPU embedding queue to finish
+    embedding_queue = embedding_thread._target.__self__.embedding_queue
+    embedding_queue.put(None)  # shutdown signal
+    embedding_thread.join()
 
     total_docs = sum(r["processed_docs"] for r in reports)
     total_skipped = sum(r["skipped_docs"] for r in reports)
