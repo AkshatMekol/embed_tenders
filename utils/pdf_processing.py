@@ -1,7 +1,7 @@
 import gc
 import pdfplumber
 from io import BytesIO
-from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils.chunking import split_text_to_subchunks
 from utils.config import MAX_PROCESSES_DEEPSEEK, MAX_PROCESSES_GROQ
 from utils.regular_helpers import extract_page_content, elements_to_positions
