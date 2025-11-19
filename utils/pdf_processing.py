@@ -52,7 +52,7 @@ def process_pdf(pdf_stream):
         deepseek_jobs = [(res["page"], res["raw_content"]) for res in groq_results]
         print(f"\nTranslating {len(deepseek_jobs)} pages with DeepSeek using {MAX_PROCESSES_DEEPSEEK} processes")
 
-        with ProcessPoolExecutor(max_workers=MAX_PROCESSES_DEEPSEEK) as pool:
+        with ThreadPoolExecutor(max_workers=MAX_PROCESSES_DEEPSEEK) as pool:
             for res in pool.map(deepseek_translate_worker, deepseek_jobs):
                 sub_chunks = split_text_to_subchunks(
                     res["translated_text"], res["page"], 1, "text", is_scanned=True
