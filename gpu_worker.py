@@ -15,7 +15,7 @@ def gpu_worker():
             print("🛑 GPU worker received stop signal. Exiting.")
             break
 
-        chunks, document_name, tender_id = 
+        chunks, document_name, tender_id = task
         for c in chunks:
             if "tender_id" not in c:
                 c["tender_id"] = tender_id
