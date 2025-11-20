@@ -2,7 +2,7 @@ import asyncio
 import aiohttp
 from tqdm.asyncio import tqdm_asyncio
 from tqdm import tqdm
-from utils.mongo_utils import get_tender_ids   # your MongoDB helper
+from utils.mongo_utils import get_tender_ids  
 
 SERVER_URL = "http://13.203.30.125:8000/process/"
 MAX_CONCURRENT = 4
@@ -28,15 +28,12 @@ async def runner(tender_ids):
                 result = await process_tender(session, tid)
                 return result
 
-        # Wrap tasks in tqdm
         tasks = [sem_task(tid) for tid in tender_ids]
 
-        # tqdm_asyncio to show async progress bar
         for coro in tqdm_asyncio.tqdm_asyncio(tasks, total=len(tasks), desc="Processing tenders"):
             result = await coro
             results.append(result)
 
-            # Print tender summary immediately
             print("\n===============================")
             print(f"📦 Tender {result.get('tender_id')} finished")
             print("===============================")
