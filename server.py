@@ -22,7 +22,6 @@ def stop_gpu_thread():
     embedding_queue.put(STOP_SIGNAL)
     gpu_thread.join()
 
-
 async def process_single_tender(tender_id):
     report = {
         "tender_id": tender_id,
@@ -76,7 +75,6 @@ async def process_single_tender(tender_id):
         report["errors"].append(str(e))
 
     return report
-
 
 @app.post("/process/{tender_id}")
 async def route_process(tender_id: str):
