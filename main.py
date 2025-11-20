@@ -6,6 +6,7 @@ from utils.mongo_utils import get_tender_ids   # your MongoDB helper
 
 SERVER_URL = "http://13.203.30.125:8000/process/"
 MAX_CONCURRENT = 4
+MIN_VALUE = 2000000000
 
 async def process_tender(session, tender_id):
     url = SERVER_URL + tender_id
@@ -55,7 +56,7 @@ async def runner(tender_ids):
 
 def main():
     print("Fetching tender IDs...")
-    tender_ids = get_tender_ids(0)   # Change if you need MIN_TENDER_VALUE
+    tender_ids = get_tender_ids(MIN_VALUE)   
 
     print(f"Found {len(tender_ids)} tenders.")
     print("Sending them to server (max 4 at a time)...")
