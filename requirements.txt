@@ -11,5 +11,7 @@ pymongo
 requests
 groq
 tabulate
-aiohttp
-aioboto3
+aiohttp==3.8.6
+aioboto3==11.0.0
+uvicorn
+fastapi[all]
