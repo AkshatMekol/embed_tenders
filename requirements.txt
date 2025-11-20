@@ -6,12 +6,12 @@ pdfplumber
 Pillow
 sentence-transformers
 torch
+numpy
 transformers
 pymongo
 requests
 groq
 tabulate
-aiohttp==3.8.6
-aioboto3==11.0.0
+aiohttp
 uvicorn
 fastapi[all]
