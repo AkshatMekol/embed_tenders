@@ -20,7 +20,7 @@ async def deepseek_worker(job, semaphore):
             res["translated_text"], res["page"], 1, "text", is_scanned=True
         )
         gc.collect()
-        return res
+        return sub_chunks
 
 async def process_pdf(pdf_stream):
     pdf_bytes = pdf_stream.read()
