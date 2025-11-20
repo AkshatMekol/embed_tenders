@@ -21,7 +21,7 @@ def stop_gpu_thread():
     embedding_queue.put(STOP_SIGNAL)
     gpu_thread.join()
 
-def process_single_tender(tender_id):
+async def process_single_tender(tender_id):
     report = {
         "tender_id": tender_id,
         "processed_docs": 0,
@@ -47,7 +47,7 @@ def process_single_tender(tender_id):
 
             try:
                 pdf_stream = fetch_pdf(pdf_key)
-                pdf_result = process_pdf(pdf_stream)
+                pdf_result = await process_pdf(pdf_stream)
 
                 chunks = pdf_result["chunks"]
                 report["scanned_pages"] += pdf_result["scanned_pages"]
@@ -72,5 +72,5 @@ def process_single_tender(tender_id):
     return report
 
 @app.post("/process/{tender_id}")
-def route_process(tender_id: str):
-    return process_single_tender(tender_id)
+async def route_process(tender_id: str):
+    return async process_single_tender(tender_id)
