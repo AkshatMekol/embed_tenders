@@ -1,184 +1,84 @@
-import os
-import gc
+import asyncio
+import aiohttp
+from tqdm.asyncio import tqdm_asyncio
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from utils.s3_utils import list_s3_pdfs, fetch_pdf
-from utils.pdf_processing import process_pdf
-from utils.mongo_utils import get_tender_ids, vector_collection, enqueue_chunks_for_embedding, embedding_thread, embedding_queue
+from utils.mongo_utils import get_tender_ids   # your MongoDB helper
 
-MAX_PROCESSES = 1
-MIN_TENDER_VALUE = 1_000_000_000
+SERVER_URL = "http://13.203.30.125:8000/process/"
+MAX_CONCURRENT = 4
 
-def process_single_tender(tender_id):
-    report = {
-        "tender_id": tender_id,
-        "processed_docs": 0,
-        "skipped_docs": 0,
-        "empty_docs": 0,
-        "scanned_pages": 0,
-        "regular_pages": 0,
-        "errors": []
-    }
-
-    print(f"[{tender_id}] Tender started")
-
+async def process_tender(session, tender_id):
+    url = SERVER_URL + tender_id
     try:
-        s3_prefix = f"tender-documents/{tender_id}/"
-        pdf_keys = list_s3_pdfs(s3_prefix)
-
-        print(f"[{tender_id}] Found {len(pdf_keys)} PDFs")
-
-        for pdf_key in pdf_keys:
-            try:
-                document_name = os.path.basename(pdf_key)
-
-                # Skip if already processed
-                if vector_collection.count_documents({"tender_id": tender_id, "document_name": document_name}) > 0:
-                    report["skipped_docs"] += 1
-                    continue
-
-                pdf_stream = fetch_pdf(pdf_key)
-                pdf_result = process_pdf(pdf_stream)
-
-                sub_chunks = pdf_result["chunks"]
-                report["scanned_pages"] += pdf_result["scanned_pages"]
-                report["regular_pages"] += pdf_result["regular_pages"]
-
-                if not sub_chunks:
-                    report["empty_docs"] += 1
-                    continue
-
-                # enqueue chunks to GPU worker
-                enqueue_chunks_for_embedding(sub_chunks, document_name, tender_id)
-
-                report["processed_docs"] += 1
-
-                del pdf_stream, sub_chunks
-                gc.collect()
-
-            except Exception as e:
-                report["errors"].append(str(e))
-
-        print(f"[{tender_id}] Tender completed")
-
+        async with session.post(url) as resp:
+            if resp.status != 200:
+                return {"tender_id": tender_id, "error": f"HTTP {resp.status}"}
+            return await resp.json()
     except Exception as e:
-        report["errors"].append(str(e))
+        return {"tender_id": tender_id, "error": str(e)}
 
-    return report
+async def runner(tender_ids):
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+    results = []
 
-def process_single_tender(tender_id):
-    report = {
-        "tender_id": tender_id,
-        "processed_docs": 0,
-        "skipped_docs": 0,
-        "empty_docs": 0,
-        "scanned_pages": 0,
-        "regular_pages": 0,
-        "errors": []
-    }
+    async with aiohttp.ClientSession() as session:
+        async def sem_task(tid):
+            async with semaphore:
+                result = await process_tender(session, tid)
+                return result
 
-    try:
-        print(f"[{tender_id}] Starting tender")
-        s3_prefix = f"tender-documents/{tender_id}/"
-        pdf_keys = list_s3_pdfs(s3_prefix)
-        print(f"[{tender_id}] Found {len(pdf_keys)} PDFs")
+        # Wrap tasks in tqdm
+        tasks = [sem_task(tid) for tid in tender_ids]
 
-        if not pdf_keys:
-            print(f"[{tender_id}] No PDFs found")
-            return report
+        # tqdm_asyncio to show async progress bar
+        for coro in tqdm_asyncio.tqdm_asyncio(tasks, total=len(tasks), desc="Processing tenders"):
+            result = await coro
+            results.append(result)
 
-        for pdf_key in pdf_keys:
-            document_name = os.path.basename(pdf_key)
+            # Print tender summary immediately
+            print("\n===============================")
+            print(f"📦 Tender {result.get('tender_id')} finished")
+            print("===============================")
 
-            if vector_collection.count_documents({"tender_id": tender_id, "document_name": document_name}) > 0:
-                report["skipped_docs"] += 1
-                print(f"[{tender_id}] Skipping existing PDF: {document_name}")
-                continue
+            if "error" in result:
+                print(f" ❌ Error: {result['error']}")
+            else:
+                print(f" ✔ Docs processed: {result.get('processed_docs')}")
+                print(f" ↪ Skipped: {result.get('skipped_docs')}")
+                print(f" ↪ Empty: {result.get('empty_docs')}")
+                print(f" ↪ Scanned pages: {result.get('scanned_pages')}")
+                print(f" ↪ Regular pages: {result.get('regular_pages')}")
+                print(f" ↪ Errors: {len(result.get('errors', []))}")
+            print("===============================\n")
 
-            try:
-                pdf_stream = fetch_pdf(pdf_key)
-                pdf_result = process_pdf(pdf_stream)
-
-                sub_chunks = pdf_result["chunks"]
-                scanned_pages = pdf_result["scanned_pages"]
-                regular_pages = pdf_result["regular_pages"]
-
-                report["scanned_pages"] += scanned_pages
-                report["regular_pages"] += regular_pages
-
-                if not sub_chunks:
-                    report["empty_docs"] += 1
-                    print(f"[{tender_id}] PDF {document_name} has no subchunks")
-                    continue
-
-                enqueue_chunks_for_embedding(sub_chunks, document_name, tender_id)
-                report["processed_docs"] += 1
-
-                print(f"[{tender_id}] PDF {document_name} processed: Regular={regular_pages}, Scanned={scanned_pages}")
-
-                del pdf_stream, sub_chunks
-                gc.collect()
-
-            except Exception as e_pdf:
-                report["errors"].append(f"{document_name}: {e_pdf}")
-                print(f"[{tender_id}] ❌ Error processing PDF {document_name}: {e_pdf}")
-
-        print(f"[{tender_id}] Finished tender - Processed: {report['processed_docs']}, Skipped: {report['skipped_docs']}, Empty: {report['empty_docs']}, Scanned Pages: {report['scanned_pages']}, Regular Pages: {report['regular_pages']}, Errors: {len(report['errors'])}")
-
-    except Exception as e:
-        report["errors"].append(str(e))
-        print(f"[{tender_id}] ❌ Tender-level error: {e}")
-
-    return report
+    return results
 
 def main():
-    print("Fetching tender IDs from MongoDB...")
-    # tender_ids = get_tender_ids(MIN_TENDER_VALUE)
-    tender_ids = ["6910f5f5b29e12b878b4f666"]
-    print(f"Found {len(tender_ids)} tenders above {MIN_TENDER_VALUE}\n")
-    print(f"Using {MAX_PROCESSES} parallel CPU processes\n")
+    print("Fetching tender IDs...")
+    tender_ids = get_tender_ids(0)   # Change if you need MIN_TENDER_VALUE
 
-    reports = []
+    print(f"Found {len(tender_ids)} tenders.")
+    print("Sending them to server (max 4 at a time)...")
 
-    try:
-        with ProcessPoolExecutor(max_workers=MAX_PROCESSES) as executor:
-            futures = {executor.submit(process_single_tender, tid): tid for tid in tender_ids}
+    results = asyncio.run(runner(tender_ids))
 
-            try:
-                for f in tqdm(as_completed(futures), total=len(futures), desc="Processing tenders"):
-                    report = f.result()
-                    reports.append(report)
+    print("\n==================== FINAL SUMMARY ====================")
 
-            except KeyboardInterrupt:
-                print("\n⚠️ Ctrl+C detected! Shutting down executor...")
-                executor.shutdown(wait=False, cancel_futures=True)
-                for f in futures:
-                    f.cancel()
-                raise
+    total_docs = sum(r.get("processed_docs", 0) for r in results)
+    total_skipped = sum(r.get("skipped_docs", 0) for r in results)
+    total_empty = sum(r.get("empty_docs", 0) for r in results)
+    total_scanned = sum(r.get("scanned_pages", 0) for r in results)
+    total_regular = sum(r.get("regular_pages", 0) for r in results)
+    total_errors = sum(len(r.get("errors", [])) for r in results if "errors" in r)
 
-    except KeyboardInterrupt:
-        print("Stopped by user.")
-
-    print("Waiting for embedding queue to finish...")
-    embedding_queue.join()
-    embedding_queue.put(None)
-    embedding_thread.join()
-    print("Embedding thread has finished all work")
-
-    total_docs = sum(r["processed_docs"] for r in reports)
-    total_skipped = sum(r["skipped_docs"] for r in reports)
-    total_empty = sum(r["empty_docs"] for r in reports)
-    total_scanned_pages = sum(r["scanned_pages"] for r in reports)
-    total_regular_pages = sum(r["regular_pages"] for r in reports)
-    total_errors = sum(len(r["errors"]) for r in reports)
-
-    print(f"\nTenders processed before stop:")
     print(f"Total docs processed: {total_docs}")
-    print(f"Skipped (already in DB): {total_skipped}")
-    print(f"Empty PDFs (no subchunks): {total_empty}")
-    print(f"Scanned pages total: {total_scanned_pages}")
-    print(f"Regular pages total: {total_regular_pages}")
+    print(f"Total skipped: {total_skipped}")
+    print(f"Total empty PDFs: {total_empty}")
+    print(f"Total scanned pages: {total_scanned}")
+    print(f"Total regular pages: {total_regular}")
     print(f"Errors: {total_errors}")
+
+    print("========================================================")
 
 if __name__ == "__main__":
     main()
