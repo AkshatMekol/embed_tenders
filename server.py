@@ -96,7 +96,7 @@
 #     report = await process_single_tender(tender_id)
 #     return report
 
-
+from fastapi.middleware.cors import CORSMiddleware
 import os
 import gc
 import threading
@@ -122,6 +122,26 @@ def stop_gpu_thread():
     print("🛑 Stopping embedding worker thread...")
     embedding_queue.put(STOP_SIGNAL)
     gpu_thread.join()
+
+origins = [
+    "http://localhost:8080",
+    "http://192.168.1.5:8080",
+    "https://tenderbharat.vercel.app",
+    "http://localhost:3000",
+    # "https://tender-bharat.com",
+    # "https://www.tender-bharat.com",
+    # "https://www.tender-bharat.site",
+    "https://www.bidindia.site",
+    "https://www.bidindia.co.in",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 MAX_CONCURRENT_REQUESTS = 4
 tender_semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
