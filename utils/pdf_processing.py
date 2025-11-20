@@ -37,8 +37,7 @@ async def process_pdf(pdf_stream):
             print(f"\nProcessing Page {i+1}: {'SCANNED' if scanned else 'TEXT'}")
 
             if scanned:
-                continue
-                # scanned_jobs.append((i, pdf_bytes))
+                scanned_jobs.append((i, pdf_bytes))
             else:
                 elements = extract_page_content(page)
                 positions = elements_to_positions(elements)
