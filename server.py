@@ -1,12 +1,13 @@
 import os
 import gc
 import threading
+import asyncio
 from fastapi import FastAPI
-from utils.s3_utils import list_s3_pdfs, fetch_pdf
-from utils.pdf_processing import process_pdf
-from utils.mongo_utils import vector_collection
 from embedding_queue import embedding_queue, STOP_SIGNAL
 from gpu_worker import gpu_worker
+from utils.pdf_processing import process_pdf
+from utils.mongo_utils import vector_collection
+from utils.s3_utils import list_s3_pdfs, fetch_pdf  # import async S3 utils
 
 app = FastAPI()
 
@@ -20,6 +21,7 @@ def start_gpu_thread():
 def stop_gpu_thread():
     embedding_queue.put(STOP_SIGNAL)
     gpu_thread.join()
+
 
 async def process_single_tender(tender_id):
     report = {
@@ -36,17 +38,21 @@ async def process_single_tender(tender_id):
 
     try:
         s3_prefix = f"tender-documents/{tender_id}/"
-        pdf_keys = list_s3_pdfs(s3_prefix)
+        pdf_keys = await list_s3_pdfs(s3_prefix)
 
         for pdf_key in pdf_keys:
             document_name = os.path.basename(pdf_key)
 
-            if vector_collection.count_documents({"tender_id": tender_id, "document_name": document_name}) > 0:
+            doc_exists = await asyncio.to_thread(
+                vector_collection.count_documents,
+                {"tender_id": tender_id, "document_name": document_name}
+            )
+            if doc_exists > 0:
                 report["skipped_docs"] += 1
                 continue
 
             try:
-                pdf_stream = fetch_pdf(pdf_key)
+                pdf_stream = await fetch_pdf(pdf_key)
                 pdf_result = await process_pdf(pdf_stream)
 
                 chunks = pdf_result["chunks"]
@@ -64,13 +70,14 @@ async def process_single_tender(tender_id):
                 gc.collect()
 
             except Exception as e:
-                report["errors"].append(str(e))
+                report["errors"].append(f"{document_name}: {str(e)}")
 
     except Exception as e:
         report["errors"].append(str(e))
 
     return report
 
+
 @app.post("/process/{tender_id}")
 async def route_process(tender_id: str):
-    return async process_single_tender(tender_id)
+    return await process_single_tender(tender_id)
