@@ -142,6 +142,8 @@ async def process_pdf(pdf_stream):
         deepseek_semaphore = asyncio.Semaphore(MAX_PROCESSES_DEEPSEEK)
         deepseek_tasks = [deepseek_worker(job, deepseek_semaphore) for job in deepseek_jobs]
         deepseek_results = await asyncio.gather(*deepseek_tasks)
+        for sub_chunks in deepseek_results:
+            all_sub_chunks.extend(sub_chunks)
 
     del pdf_bytes, scanned_jobs
     if 'groq_results' in locals():
