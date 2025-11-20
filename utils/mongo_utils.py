@@ -67,10 +67,6 @@ def embedding_worker():
 
     print("Embedding worker stopped")
 
-embedding_thread = Thread(target=embedding_worker, daemon=True)
-embedding_thread.start()
-print("Embedding thread initialized and running")
-
 def get_tender_ids(min_value: int):
     query = {"tender_value": {"$gte": min_value, "$lte": 100_000_000_000_000}}
     projection = {"_id": 1}
