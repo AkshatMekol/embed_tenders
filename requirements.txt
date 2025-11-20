@@ -11,3 +11,5 @@ pymongo
 requests
 groq
 tabulate
+aiohttp
+aioboto3
