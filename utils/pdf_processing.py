@@ -94,7 +94,6 @@ async def deepseek_worker(job, semaphore):
         sub_chunks = split_text_to_subchunks(
             res["translated_text"], res["page"], 1, "text", is_scanned=True
         )
-        all_sub_chunks.extend(sub_chunks)
         gc.collect()
         return res
 
