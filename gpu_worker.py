@@ -1,4 +1,5 @@
 import gc
+import torch
 from embedding_queue import embedding_queue, STOP_SIGNAL
 from utils.embedding_utils import embed_batch
 from utils.mongo_utils import store_embeddings_in_db
