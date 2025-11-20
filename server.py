@@ -7,7 +7,7 @@ from embedding_queue import embedding_queue, STOP_SIGNAL
 from gpu_worker import gpu_worker
 from utils.pdf_processing import process_pdf
 from utils.mongo_utils import vector_collection
-from utils.s3_utils import list_s3_pdfs, fetch_pdf  # import async S3 utils
+from utils.s3_utils import list_s3_pdfs, fetch_pdf  # async wrappers
 
 app = FastAPI()
 
@@ -15,14 +15,16 @@ gpu_thread = threading.Thread(target=gpu_worker, daemon=True)
 
 @app.on_event("startup")
 def start_gpu_thread():
+    print("🚀 Starting embedding worker thread...")
     gpu_thread.start()
 
 @app.on_event("shutdown")
 def stop_gpu_thread():
+    print("🛑 Stopping embedding worker thread...")
     embedding_queue.put(STOP_SIGNAL)
     gpu_thread.join()
 
-async def process_single_tender(tender_id):
+async def process_single_tender(tender_id: str):
     report = {
         "tender_id": tender_id,
         "processed_docs": 0,
@@ -33,25 +35,31 @@ async def process_single_tender(tender_id):
         "errors": []
     }
 
-    print(f"[{tender_id}] Starting tender.")
+    print(f"[{tender_id}] Starting tender processing...")
 
     try:
         s3_prefix = f"tender-documents/{tender_id}/"
         pdf_keys = await list_s3_pdfs(s3_prefix)
+        print(f"[{tender_id}] Found {len(pdf_keys)} PDF(s) in S3.")
 
         for pdf_key in pdf_keys:
             document_name = os.path.basename(pdf_key)
 
+            # Check if already processed
             doc_exists = await asyncio.to_thread(
                 vector_collection.count_documents,
                 {"tender_id": tender_id, "document_name": document_name}
             )
             if doc_exists > 0:
+                print(f"[{tender_id}] Skipping already processed document: {document_name}")
                 report["skipped_docs"] += 1
                 continue
 
             try:
+                print(f"[{tender_id}] Fetching PDF: {document_name}")
                 pdf_stream = await fetch_pdf(pdf_key)
+
+                print(f"[{tender_id}] Processing PDF: {document_name}")
                 pdf_result = await process_pdf(pdf_stream)
 
                 chunks = pdf_result["chunks"]
@@ -59,23 +67,31 @@ async def process_single_tender(tender_id):
                 report["regular_pages"] += pdf_result["regular_pages"]
 
                 if not chunks:
+                    print(f"[{tender_id}] No chunks found in {document_name}")
                     report["empty_docs"] += 1
                     continue
 
+                print(f"[{tender_id}] Queueing {len(chunks)} chunks for embedding: {document_name}")
                 embedding_queue.put((chunks, document_name, tender_id))
                 report["processed_docs"] += 1
 
                 del pdf_stream, chunks
                 gc.collect()
+                print(f"[{tender_id}] PDF processed successfully: {document_name}")
 
             except Exception as e:
+                print(f"[{tender_id}] Error processing {document_name}: {e}")
                 report["errors"].append(f"{document_name}: {str(e)}")
 
     except Exception as e:
+        print(f"[{tender_id}] Unexpected error: {e}")
         report["errors"].append(str(e))
 
+    print(f"[{tender_id}] Tender processing complete.")
     return report
 
 @app.post("/process/{tender_id}")
 async def route_process(tender_id: str):
-    return await process_single_tender(tender_id)
+    tender_id = str(tender_id)
+    report = await process_single_tender(tender_id)
+    return report
