@@ -15,7 +15,12 @@ def gpu_worker():
             print("🛑 GPU worker received stop signal. Exiting.")
             break
 
-        chunks, document_name, tender_id = task
+        chunks, document_name, tender_id = 
+        for c in chunks:
+            if "tender_id" not in c:
+                c["tender_id"] = tender_id
+            if "document_name" not in c:
+                c["document_name"] = document_name
 
         try:
             embeddings = embed_batch(chunks)
