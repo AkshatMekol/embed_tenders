@@ -1,0 +1,25 @@
+[project]
+name = "embed-tenderss"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "python-dotenv",
+    "tqdm",
+    "boto3",
+    "botocore",
+    "pdfplumber",
+    "Pillow",
+    "sentence-transformers",
+    "torch",
+    "numpy",
+    "transformers",
+    "pymongo",
+    "requests",
+    "groq",
+    "tabulate",
+    "aiohttp",
+    "uvicorn",
+    "fastapi[all]",
+]
