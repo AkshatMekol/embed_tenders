@@ -5,7 +5,7 @@ from tqdm import tqdm
 from utils.mongo_utils import get_tender_ids  
 
 SERVER_URL = "http://13.203.30.125:8000/process/"
-MAX_CONCURRENT = 4
+MAX_CONCURRENT = 1
 MIN_VALUE = 2000000000
 
 async def process_tender(session, tender_id):
