@@ -91,7 +91,7 @@ def process_single_tender_cpu(tender_id: str):
                 pdf_io = BytesIO(pdf_bytes)
                 
                 with pdfplumber.open(pdf_io) as pdf:
-                    total_pages = len(pdf.pages
+                    total_pages = len(pdf.pages)
 
                 # Process in batches
                 for start in range(0, total_pages, PDF_BATCH_SIZE):
