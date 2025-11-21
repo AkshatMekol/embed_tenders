@@ -16,7 +16,7 @@ from concurrent.futures import ProcessPoolExecutor
 app = FastAPI()
 
 gpu_thread = threading.Thread(target=gpu_worker, daemon=True)
-process_pool = ProcessPoolExecutor(max_workers=4) 
+process_pool = ProcessPoolExecutor(max_workers=4)
 
 @app.on_event("startup")
 def start_gpu_thread():
@@ -29,6 +29,7 @@ def stop_gpu_thread():
     embedding_queue.put(STOP_SIGNAL)
     gpu_thread.join()
     process_pool.shutdown(wait=True)
+    print("✅ Shutdown complete")
 
 origins = [
     "http://localhost:8080",
@@ -50,6 +51,7 @@ app.add_middleware(
 PDF_BATCH_SIZE = 20
 
 def process_single_tender_cpu(tender_id: str):
+    print(f"[{tender_id}] Starting tender processing (CPU process)...")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
@@ -66,9 +68,11 @@ def process_single_tender_cpu(tender_id: str):
     try:
         s3_prefix = f"tender-documents/{tender_id}/"
         pdf_keys = loop.run_until_complete(list_s3_pdfs(s3_prefix))
+        print(f"[{tender_id}] Found {len(pdf_keys)} PDF(s) in S3")
 
         for pdf_key in pdf_keys:
             document_name = os.path.basename(pdf_key)
+            print(f"[{tender_id}] Processing document: {document_name}")
 
             # Check document_complete
             doc_entry = vector_collection.find_one(
@@ -76,9 +80,11 @@ def process_single_tender_cpu(tender_id: str):
                 {"document_complete": 1}
             )
             if doc_entry and doc_entry.get("document_complete") is True:
+                print(f"[{tender_id}] Skipping already completed document: {document_name}")
                 report["skipped_docs"] += 1
                 continue
             elif doc_entry:
+                print(f"[{tender_id}] Deleting partial embeddings for {document_name}")
                 vector_collection.delete_many(
                     {"tender_id": tender_id, "document_name": document_name}
                 )
@@ -86,16 +92,19 @@ def process_single_tender_cpu(tender_id: str):
             try:
                 pdf_stream = loop.run_until_complete(fetch_pdf(pdf_key))
                 pdf_bytes = pdf_stream.read()
-                
+                print(f"[{tender_id}] Fetched PDF: {document_name} ({len(pdf_bytes)} bytes)")
+
                 # Convert to seekable object
                 pdf_io = BytesIO(pdf_bytes)
-                
+
                 with pdfplumber.open(pdf_io) as pdf:
                     total_pages = len(pdf.pages)
+                print(f"[{tender_id}] Total pages in {document_name}: {total_pages}")
 
                 # Process in batches
                 for start in range(0, total_pages, PDF_BATCH_SIZE):
                     end = start + PDF_BATCH_SIZE
+                    print(f"[{tender_id}] Processing pages {start} to {end} of {document_name}")
                     chunks, scanned_count, regular_count = loop.run_until_complete(
                         process_pdf_batch(pdf_bytes, start, end)
                     )
@@ -104,6 +113,7 @@ def process_single_tender_cpu(tender_id: str):
                     report["regular_pages"] += regular_count
 
                     if chunks:
+                        print(f"[{tender_id}] Queueing {len(chunks)} chunks for GPU embedding")
                         embedding_queue.put((chunks, document_name, tender_id))
                         gc.collect()
 
@@ -114,31 +124,40 @@ def process_single_tender_cpu(tender_id: str):
                     upsert=True
                 )
                 report["processed_docs"] += 1
+                print(f"[{tender_id}] Finished document: {document_name}")
                 del pdf_stream, pdf_bytes
                 gc.collect()
 
             except Exception as e:
+                print(f"[{tender_id}] Error processing {document_name}: {e}")
                 report["errors"].append(f"{document_name}: {str(e)}")
 
     except Exception as e:
+        print(f"[{tender_id}] Unexpected error: {e}")
         report["errors"].append(str(e))
 
+    print(f"[{tender_id}] Tender processing complete")
     return report
 
 # --------------------------
 # FastAPI route: runs in process pool
 # --------------------------
+tender_semaphore = asyncio.Semaphore(4)
+
 @app.post("/process/{tender_id}")
 async def route_process(tender_id: str):
     tender_id = str(tender_id)
     loop = asyncio.get_running_loop()
+    print(f"[{tender_id}] Received POST request")
 
-    # Offload entire tender processing to separate process
-    async with asyncio.Semaphore(1): 
+    async with tender_semaphore: 
+        print(f"[{tender_id}] Acquired semaphore, submitting to process pool")
         try:
             report = await loop.run_in_executor(process_pool, process_single_tender_cpu, tender_id)
+            print(f"[{tender_id}] Returned report from process pool")
             return report
         except Exception as e:
+            print(f"[{tender_id}] Exception in route: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
 
