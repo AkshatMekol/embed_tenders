@@ -10,10 +10,12 @@ from utils.pdf_processing import process_pdf_batch
 from utils.mongo_utils import vector_collection
 from utils.s3_utils import list_s3_pdfs, fetch_pdf
 import pdfplumber
+from concurrent.futures import ProcessPoolExecutor
 
 app = FastAPI()
 
 gpu_thread = threading.Thread(target=gpu_worker, daemon=True)
+process_pool = ProcessPoolExecutor(max_workers=4)  # max 4 tenders in parallel
 
 @app.on_event("startup")
 def start_gpu_thread():
@@ -25,6 +27,7 @@ def stop_gpu_thread():
     print("🛑 Stopping embedding worker thread...")
     embedding_queue.put(STOP_SIGNAL)
     gpu_thread.join()
+    process_pool.shutdown(wait=True)
 
 origins = [
     "http://localhost:8080",
@@ -43,12 +46,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MAX_CONCURRENT_REQUESTS = 4
 PDF_BATCH_SIZE = 20
-tender_semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
 
+# --------------------------
+# Wrap CPU-bound tender function for process pool
+# --------------------------
+def process_single_tender_cpu(tender_id: str):
+    """
+    This runs in a separate process.
+    embedding_queue is shared via multiprocessing.Queue, so chunks can be queued safely.
+    """
+    import pdfplumber
+    from utils.pdf_processing import process_pdf_batch
+    from utils.mongo_utils import vector_collection
+    from utils.s3_utils import list_s3_pdfs, fetch_pdf
 
-async def process_single_tender(tender_id: str):
+    import asyncio
+    import gc
+    import os
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     report = {
         "tender_id": tender_id,
         "processed_docs": 0,
@@ -59,47 +78,37 @@ async def process_single_tender(tender_id: str):
         "errors": []
     }
 
-    print(f"[{tender_id}] Starting tender processing...")
-
     try:
         s3_prefix = f"tender-documents/{tender_id}/"
-        pdf_keys = await list_s3_pdfs(s3_prefix)
-        print(f"[{tender_id}] Found {len(pdf_keys)} PDF(s) in S3.")
+        pdf_keys = loop.run_until_complete(list_s3_pdfs(s3_prefix))
 
         for pdf_key in pdf_keys:
             document_name = os.path.basename(pdf_key)
 
-            # Check if document_complete exists
-            doc_entry = await asyncio.to_thread(
-                vector_collection.find_one,
+            # Check document_complete
+            doc_entry = vector_collection.find_one(
                 {"tender_id": tender_id, "document_name": document_name},
                 {"document_complete": 1}
             )
-
             if doc_entry and doc_entry.get("document_complete") is True:
-                print(f"[{tender_id}] Skipping already completed document: {document_name}")
                 report["skipped_docs"] += 1
                 continue
             elif doc_entry:
-                # Delete existing partial embeddings
-                await asyncio.to_thread(
-                    vector_collection.delete_many,
+                vector_collection.delete_many(
                     {"tender_id": tender_id, "document_name": document_name}
                 )
 
             try:
-                print(f"[{tender_id}] Fetching PDF: {document_name}")
-                pdf_stream = await fetch_pdf(pdf_key)
+                pdf_stream = loop.run_until_complete(fetch_pdf(pdf_key))
                 pdf_bytes = pdf_stream.read()
-
                 with pdfplumber.open(pdf_bytes) as pdf:
                     total_pages = len(pdf.pages)
 
                 # Process in batches
                 for start in range(0, total_pages, PDF_BATCH_SIZE):
                     end = start + PDF_BATCH_SIZE
-                    chunks, scanned_count, regular_count = await process_pdf_batch(
-                        pdf_bytes, start, end
+                    chunks, scanned_count, regular_count = loop.run_until_complete(
+                        process_pdf_batch(pdf_bytes, start, end)
                     )
 
                     report["scanned_pages"] += scanned_count
@@ -109,37 +118,36 @@ async def process_single_tender(tender_id: str):
                         embedding_queue.put((chunks, document_name, tender_id))
                         gc.collect()
 
-                # Mark document_complete = True after all batches processed
-                await asyncio.to_thread(
-                    vector_collection.update_one,
+                # Mark complete
+                vector_collection.update_one(
                     {"tender_id": tender_id, "document_name": document_name},
                     {"$set": {"document_complete": True}},
                     upsert=True
                 )
-
                 report["processed_docs"] += 1
                 del pdf_stream, pdf_bytes
                 gc.collect()
-                print(f"[{tender_id}] PDF processed successfully: {document_name}")
 
             except Exception as e:
-                print(f"[{tender_id}] Error processing {document_name}: {e}")
                 report["errors"].append(f"{document_name}: {str(e)}")
 
     except Exception as e:
-        print(f"[{tender_id}] Unexpected error: {e}")
         report["errors"].append(str(e))
 
-    print(f"[{tender_id}] Tender processing complete.")
     return report
 
-
+# --------------------------
+# FastAPI route: runs in process pool
+# --------------------------
 @app.post("/process/{tender_id}")
 async def route_process(tender_id: str):
     tender_id = str(tender_id)
-    async with tender_semaphore:  # limit concurrent requests
+    loop = asyncio.get_running_loop()
+
+    # Offload entire tender processing to separate process
+    async with asyncio.Semaphore(4):  # limit to 4 concurrent tenders
         try:
-            report = await process_single_tender(tender_id)
+            report = await loop.run_in_executor(process_pool, process_single_tender_cpu, tender_id)
             return report
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
