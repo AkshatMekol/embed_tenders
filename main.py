@@ -25,15 +25,19 @@ async def runner(tender_ids):
     async with aiohttp.ClientSession() as session:
         async def sem_task(tid):
             async with semaphore:
-                result = await process_tender(session, tid)
-                return result
+                return await process_tender(session, tid)
 
         tasks = [sem_task(tid) for tid in tender_ids]
 
-        for coro in tqdm_asyncio.tqdm_asyncio(tasks, total=len(tasks), desc="Processing tenders"):
-            result = await coro
-            results.append(result)
+        # THIS is the correct tqdm usage
+        results = await tqdm_asyncio.gather(
+            *tasks,
+            total=len(tasks),
+            desc="Processing tenders"
+        )
 
+        # Print each result as they complete
+        for result in results:
             print("\n===============================")
             print(f"📦 Tender {result.get('tender_id')} finished")
             print("===============================")
@@ -50,6 +54,7 @@ async def runner(tender_ids):
             print("===============================\n")
 
     return results
+
 
 def main():
     print("Fetching tender IDs...")
