@@ -1,6 +1,6 @@
 import asyncio
 import aiohttp
-from tqdm.asyncio import tqdm_asyncio
+from tqdm.asyncio import gather as tqdm_gather  
 from tqdm import tqdm
 from utils.mongo_utils import get_tender_ids  
 
