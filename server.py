@@ -1,6 +1,7 @@
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import gc
+from io import BytesIO
 import threading
 import asyncio
 from fastapi import FastAPI, HTTPException
@@ -101,8 +102,12 @@ def process_single_tender_cpu(tender_id: str):
             try:
                 pdf_stream = loop.run_until_complete(fetch_pdf(pdf_key))
                 pdf_bytes = pdf_stream.read()
-                with pdfplumber.open(pdf_bytes) as pdf:
-                    total_pages = len(pdf.pages)
+                
+                # Convert to seekable object
+                pdf_io = BytesIO(pdf_bytes)
+                
+                with pdfplumber.open(pdf_io) as pdf:
+                    total_pages = len(pdf.pages
 
                 # Process in batches
                 for start in range(0, total_pages, PDF_BATCH_SIZE):
