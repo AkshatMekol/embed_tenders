@@ -46,7 +46,6 @@ app.add_middleware(
 )
 
 PDF_BATCH_SIZE = 20
-tender_semaphore = asyncio.Semaphore(4)   # max 4 concurrent tenders
 
 async def process_single_tender(tender_id: str):
     print(f"[{tender_id}] ▶ Starting tender processing...")
@@ -145,12 +144,10 @@ async def process_single_tender(tender_id: str):
 async def route_process(tender_id: str):
     tender_id = str(tender_id)
     print(f"[{tender_id}] API call received")
-
-    async with tender_semaphore:
-        try:
-            return await process_single_tender(tender_id)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+    try:
+        return await process_single_tender(tender_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # from fastapi.middleware.cors import CORSMiddleware
