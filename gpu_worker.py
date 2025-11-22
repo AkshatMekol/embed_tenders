@@ -17,7 +17,6 @@ def gpu_worker():
 
         chunks, document_name, tender_id, is_last_batch = task
 
-        # Attach metadata if missing
         for c in chunks:
             c["tender_id"] = tender_id
             c["document_name"] = document_name
