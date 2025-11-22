@@ -103,7 +103,6 @@ async def process_single_tender(tender_id: str):
                     report["empty_docs"] += 1
                     continue
 
-                # ---- Process in batches ----
                 for start in range(0, total_pages, PDF_BATCH_SIZE):
                     end = start + PDF_BATCH_SIZE
                     is_last = (end >= total_pages)
