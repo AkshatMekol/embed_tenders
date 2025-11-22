@@ -1,18 +1,27 @@
 import requests
 from utils.mongo_utils import get_tender_ids
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 SERVER_URL = "http://13.203.30.125:8000/process/"
 MIN_VALUE = 2000000000
+MAX_WORKERS = 4   # number of parallel workers
 
 
 def process_tender(tender_id):
     url = SERVER_URL + tender_id
+    print(f"▶ Starting tender {tender_id}")
+
     try:
         resp = requests.post(url, timeout=None)
         if resp.status_code != 200:
+            print(f"❌ Tender {tender_id} failed (HTTP {resp.status_code})")
             return {"tender_id": tender_id, "error": f"HTTP {resp.status_code}"}
+
+        print(f"✔ Finished tender {tender_id}")
         return resp.json()
+
     except Exception as e:
+        print(f"❌ Tender {tender_id} error: {e}")
         return {"tender_id": tender_id, "error": str(e)}
 
 
@@ -21,18 +30,28 @@ def main():
     tender_ids = get_tender_ids(MIN_VALUE)
 
     total = len(tender_ids)
-    print(f"Found {total} tenders.")
-    print("Processing them one by one...\n")
+    print(f"Found {total} tenders.\n")
+    print(f"Processing with {MAX_WORKERS} parallel workers...\n")
 
     results = []
+    completed_count = 0
 
-    for idx, tender_id in enumerate(tender_ids, start=1):
-        print(f"▶ Processing tender {tender_id} ({idx}/{total})")
-        result = process_tender(tender_id)
-        results.append(result)
+    # Thread pool for sending tenders in parallel
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        future_to_tender = {executor.submit(process_tender, t): t for t in tender_ids}
 
-        print(f"done {idx}/{total}\n")
+        for future in as_completed(future_to_tender):
+            tender_id = future_to_tender[future]
+            try:
+                result = future.result()
+            except Exception as exc:
+                result = {"tender_id": tender_id, "error": str(exc)}
 
+            results.append(result)
+            completed_count += 1
+            print(f"Progress: {completed_count}/{total} done\n")
+
+    # ==================== FINAL SUMMARY ====================
     print("\n==================== FINAL SUMMARY ====================")
 
     total_docs = sum(r.get("processed_docs", 0) for r in results)
