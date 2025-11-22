@@ -18,12 +18,12 @@ gpu_thread = threading.Thread(target=gpu_worker, daemon=True)
 
 @app.on_event("startup")
 def start_gpu_thread():
-    print("🚀 Starting embedding worker thread...")
+    print("🚀 Starting GPU worker thread...")
     gpu_thread.start()
 
 @app.on_event("shutdown")
 def stop_gpu_thread():
-    print("🛑 Stopping embedding worker thread...")
+    print("🛑 Stopping GPU worker thread...")
     embedding_queue.put(STOP_SIGNAL)
     gpu_thread.join()
     print("✅ Shutdown complete")
@@ -46,11 +46,10 @@ app.add_middleware(
 )
 
 PDF_BATCH_SIZE = 20
-tender_semaphore = asyncio.Semaphore(4)
-# max 4 concurrent tenders
+tender_semaphore = asyncio.Semaphore(4)   # max 4 concurrent tenders
 
 async def process_single_tender(tender_id: str):
-    print(f"[{tender_id}] Starting tender processing...")
+    print(f"[{tender_id}] ▶ Starting tender processing...")
 
     report = {
         "tender_id": tender_id,
@@ -68,9 +67,8 @@ async def process_single_tender(tender_id: str):
         print(f"[{tender_id}] Found {len(pdf_keys)} PDFs")
 
         for pdf_key in pdf_keys:
-
             document_name = os.path.basename(pdf_key)
-            print(f"[{tender_id}] Processing document: {document_name}")
+            print(f"[{tender_id}] 📄 Document: {document_name}")
 
             existing = await asyncio.to_thread(
                 vector_collection.find_one,
@@ -79,12 +77,12 @@ async def process_single_tender(tender_id: str):
             )
 
             if existing and existing.get("document_complete"):
-                print(f"[{tender_id}] Skipping already processed doc: {document_name}")
+                print(f"[{tender_id}] ⏩ Skipping already completed: {document_name}")
                 report["skipped_docs"] += 1
                 continue
 
             if existing:
-                print(f"[{tender_id}] Removing partial embeddings of {document_name}")
+                print(f"[{tender_id}] 🗑 Removing partial embeddings...")
                 await asyncio.to_thread(
                     vector_collection.delete_many,
                     {"tender_id": tender_id, "document_name": document_name}
@@ -98,12 +96,19 @@ async def process_single_tender(tender_id: str):
                 total_pages = await asyncio.to_thread(
                     lambda: len(pdfplumber.open(pdf_io).pages)
                 )
-
                 print(f"[{tender_id}] {document_name}: {total_pages} pages")
 
+                if total_pages == 0:
+                    print(f"[{tender_id}] ❗ No pages in document")
+                    report["empty_docs"] += 1
+                    continue
+
+                # ---- Process in batches ----
                 for start in range(0, total_pages, PDF_BATCH_SIZE):
                     end = start + PDF_BATCH_SIZE
-                    print(f"[{tender_id}] Processing batch {start}-{end}")
+                    is_last = (end >= total_pages)
+
+                    print(f"[{tender_id}] 🔹 Batch {start}-{end} (last={is_last})")
 
                     chunks, scanned, regular = await process_pdf_batch(
                         pdf_bytes, start, end
@@ -113,38 +118,34 @@ async def process_single_tender(tender_id: str):
                     report["regular_pages"] += regular
 
                     if chunks:
-                        print(f"[{tender_id}] Queueing {len(chunks)} chunks for embedding")
-                        embedding_queue.put((chunks, document_name, tender_id))
+                        print(f"[{tender_id}] Queueing {len(chunks)} chunks")
+                        embedding_queue.put(
+                            (chunks, document_name, tender_id, is_last)
+                        )
+                    else:
+                        print(f"[{tender_id}] ⚠ No chunks for this batch")
 
                     gc.collect()
 
-                await asyncio.to_thread(
-                    vector_collection.update_one,
-                    {"tender_id": tender_id, "document_name": document_name},
-                    {"$set": {"document_complete": True}},
-                    True
-                )
-
                 report["processed_docs"] += 1
-                print(f"[{tender_id}] Completed {document_name}")
+                print(f"[{tender_id}] ✔ Finished queuing: {document_name}")
 
             except Exception as e:
                 msg = f"{document_name}: {str(e)}"
-                print(f"[{tender_id}] ERROR: {msg}")
+                print(f"[{tender_id}] ❌ ERROR: {msg}")
                 report["errors"].append(msg)
 
     except Exception as e:
-        print(f"[{tender_id}] UNEXPECTED ERROR: {e}")
+        print(f"[{tender_id}] ❌ UNEXPECTED ERROR: {e}")
         report["errors"].append(str(e))
 
-    print(f"[{tender_id}] Tender processing complete.")
+    print(f"[{tender_id}] 🎯 Tender processing complete")
     return report
-
 
 @app.post("/process/{tender_id}")
 async def route_process(tender_id: str):
     tender_id = str(tender_id)
-    print(f"[{tender_id}] Received request")
+    print(f"[{tender_id}] API call received")
 
     async with tender_semaphore:
         try:
