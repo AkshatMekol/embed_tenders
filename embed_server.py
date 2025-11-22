@@ -16,6 +16,9 @@ origins = [
     "http://localhost:8080",
     "http://192.168.1.5:8080",
     "https://tenderbharat.vercel.app",
+    "http://localhost:3000",
+    "https://www.bidindia.site",
+    "https://www.bidindia.co.in",
 ]
 
 app.add_middleware(
