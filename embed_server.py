@@ -5,7 +5,7 @@ from io import BytesIO
 import asyncio
 from fastapi import FastAPI, HTTPException
 from utils.pdf_processing import process_pdf_batch
-from utils.mongo_utils import vector_collection
+from utils.mongo_utils import vector_collection, is_document_complete
 from utils.s3_utils import list_s3_pdfs, fetch_pdf
 import pdfplumber
 import requests
@@ -58,28 +58,18 @@ async def process_single_tender(tender_id: str):
 
     for pdf_key in pdf_keys:
         document_name = os.path.basename(pdf_key)
-        print(f"\n--------------------------------")
         print(f"📄 Document: {document_name}")
-        print(f"--------------------------------")
 
-        # Check if already completed
-        existing = await asyncio.to_thread(
-            vector_collection.find_one,
-            {"tender_id": tender_id, "document_name": document_name},
-            {"document_complete": 1}
-        )
-
-        if existing and existing.get("document_complete"):
+       if await asyncio.to_thread(is_document_complete, tender_id, document_name):
             print(f"⏩ Already processed, skipping")
             report["skipped_docs"] += 1
             continue
-
-        if existing:
-            print("🗑 Removing partial embeddings from MongoDB...")
-            await asyncio.to_thread(
-                vector_collection.delete_many,
-                {"tender_id": tender_id, "document_name": document_name}
-            )
+        
+        await asyncio.to_thread(
+            vector_collection.delete_many,
+            {"tender_id": tender_id, "document_name": document_name}
+        )
+        print("🗑 Removed previous embeddings (if any)")
 
         try:
             print("⬇ Fetching PDF from S3")
