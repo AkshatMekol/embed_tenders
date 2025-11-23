@@ -29,7 +29,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-PDF_BATCH_SIZE = 20
+PDF_BATCH_SIZE = 10
 GPU_SERVER_URL = "http://127.0.0.1:9000/enqueue"
 
 # =======================================================
