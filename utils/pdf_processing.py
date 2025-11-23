@@ -44,8 +44,6 @@ async def process_pdf_batch(pdf_bytes, start_page=0, end_page=None):
                         pos["content"], i+1, pos["position"], pos["type"], is_scanned=False
                     )
                     all_sub_chunks.extend(sub_chunks)
-            del elements, positions, sub_chunks    
-        del page
         gc.collect()
 
     groq_results = []
@@ -62,9 +60,7 @@ async def process_pdf_batch(pdf_bytes, start_page=0, end_page=None):
         deepseek_results = await asyncio.gather(*deepseek_tasks)
         for sub_chunks in deepseek_results:
             all_sub_chunks.extend(sub_chunks)
-        del deepseek_results, deepseek_tasks
         gc.collect()
 
-    del scanned_jobs, groq_results
     gc.collect()
     return all_sub_chunks, len(scanned_jobs), (end_page - start_page - len(scanned_jobs))
