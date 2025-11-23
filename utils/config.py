@@ -17,6 +17,7 @@ MONGO_URI = os.getenv("MONGO_URI")
 DB_NAME = os.getenv("DB_NAME")
 TENDERS_COLLECTION = os.getenv("TENDERS_COLLECTION")
 VECTOR_COLLECTION = os.getenv("VECTOR_COLLECTION")
+DOCS_STATUS_COLLECTION = os.getenv("DOCS_STATUS_COLLECTION")
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
