@@ -4,7 +4,7 @@ from queue import Queue
 import threading
 import gc
 from utils.embedding_utils import embed_batch
-from utils.mongo_utils import store_embeddings_in_db, vector_collection
+from utils.mongo_utils import store_embeddings_in_db, mark_document_complete
 import torch
 
 embedding_queue = Queue(maxsize=20000)
@@ -35,11 +35,7 @@ def gpu_worker():
             print(f"[{document_name}] 💾 Stored in MongoDB")
 
             if is_last_batch:
-                vector_collection.update_one(
-                    {"tender_id": tender_id, "document_name": document_name},
-                    {"$set": {"document_complete": True}},
-                    upsert=True
-                )
+                await asyncio.to_thread(mark_document_complete, tender_id, document_name)
                 print(f"[{document_name}] 🎉 Document marked COMPLETE")
 
         except Exception as e:
