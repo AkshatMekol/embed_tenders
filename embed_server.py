@@ -29,7 +29,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-PDF_BATCH_SIZE = 10
+# PDF_BATCH_SIZE = 10
 GPU_SERVER_URL = "http://127.0.0.1:9000/enqueue"
 
 # =======================================================
@@ -96,11 +96,17 @@ async def process_single_tender(tender_id: str):
                 report["empty_docs"] += 1
                 continue
 
-            # Process in batches
-            for start in range(0, total_pages, PDF_BATCH_SIZE):
-                end = min(start + PDF_BATCH_SIZE, total_pages)
-                is_last = (end >= total_pages)
+            file_size_kb = len(pdf_bytes) / 1024
+            size_per_page_kb = file_size_kb / max(total_pages, 1)
+            if size_per_page_kb < 250:
+                batch_size = 20
+            else:
+                batch_size = 5
+            print(f"📦 Dynamic batch size = {batch_size} (size_per_page={size_per_page_kb:.1f} KB)")
 
+            for start in range(0, total_pages, batch_size):
+                end = min(start + batch_size, total_pages)
+                is_last = (end >= total_pages)
                 print(f"🔹 Page batch: {start} → {end} (last={is_last})")
 
                 chunks, scanned, regular = await process_pdf_batch(
