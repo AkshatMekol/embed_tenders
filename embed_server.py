@@ -126,6 +126,9 @@ async def process_single_tender(tender_id: str):
                         print(f"❌ GPU enqueue failed: {e}")
                         report["errors"].append(f"{document_name}: GPU error - {str(e)}")
 
+                del chunks
+                resp.close()
+                del resp
                 gc.collect()
 
             print(f"✔ Completed queuing document: {document_name}")
