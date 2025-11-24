@@ -85,6 +85,7 @@ async def groq_worker(job, semaphore):
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, process_scanned_page_worker, job)
         
+
 async def deepseek_worker(job, semaphore):
     async with semaphore:
         loop = asyncio.get_running_loop()
@@ -97,7 +98,7 @@ async def deepseek_worker(job, semaphore):
 
 
 # ----------------- SEND TO GPU -----------------
-async def send_to_gpu(chunks, page_num, doc_name="doc", tender_id="tender_id"):
+async def send_to_gpu(chunks, page_num, doc_name="doc", tender_id="tender_id", is_last=False):
     try:
         resp = await asyncio.to_thread(
             requests.post,
@@ -106,7 +107,7 @@ async def send_to_gpu(chunks, page_num, doc_name="doc", tender_id="tender_id"):
                 "chunks": chunks,
                 "document_name": f"{doc_name}_page_{page_num}",
                 "tender_id": tender_id,
-                "is_last_batch": False
+                "is_last_batch": is_last
             }
         )
         print(f"[GPU] Sent page {page_num} → {resp.status_code}")
@@ -116,7 +117,7 @@ async def send_to_gpu(chunks, page_num, doc_name="doc", tender_id="tender_id"):
 
 
 # ----------------- PROCESS PDF PAGES -----------------
-async def process_pdf_pages(pdf_bytes, start_page=0, end_page=None):
+async def process_pdf_pages(pdf_bytes, doc_name="doc", tender_id="tender_id", start_page=0, end_page=None):
     groq_semaphore = asyncio.Semaphore(MAX_PROCESSES_GROQ)
     deepseek_semaphore = asyncio.Semaphore(MAX_PROCESSES_DEEPSEEK)
     pending_tasks = []
@@ -133,14 +134,14 @@ async def process_pdf_pages(pdf_bytes, start_page=0, end_page=None):
 
             # ----- SCANNED PAGE -----
             if scanned:
-                # Start GROQ -> DEEPSEEK asynchronously
                 async def process_scanned(page_idx, page_bytes):
                     groq_result = await groq_worker((page_idx, page_bytes), groq_semaphore)
                     deepseek_result = await deepseek_worker(
                         (groq_result["page"], groq_result["raw_content"]), deepseek_semaphore
                     )
                     if deepseek_result:
-                        await send_to_gpu(deepseek_result, page_idx)
+                        is_last = (page_idx + 1 == total_pages)
+                        await send_to_gpu(deepseek_result, page_idx + 1, doc_name, tender_id, is_last=is_last)
                 
                 task = asyncio.create_task(process_scanned(i, pdf_bytes))
                 pending_tasks.append(task)
@@ -159,8 +160,8 @@ async def process_pdf_pages(pdf_bytes, start_page=0, end_page=None):
                 all_sub_chunks.extend(sub_chunks)
 
             if all_sub_chunks:
-                # Send regular page to GPU immediately
-                task = asyncio.create_task(send_to_gpu(all_sub_chunks, page_num))
+                is_last = (page_num == total_pages)
+                task = asyncio.create_task(send_to_gpu(all_sub_chunks, page_num, doc_name, tender_id, is_last=is_last))
                 pending_tasks.append(task)
 
             gc.collect()
