@@ -2,7 +2,7 @@ import requests
 from utils.mongo_utils import get_tender_ids
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-SERVER_URL = "http://13.203.30.125:8000/process/"
+SERVER_URL = "http://127.0.0.1:8000/process/"
 MIN_VALUE = 2000000000
 MAX_WORKERS = 4   # number of parallel workers
 
