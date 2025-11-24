@@ -35,7 +35,7 @@ def gpu_worker():
             print(f"[{document_name}] 💾 Stored in MongoDB")
 
             if is_last_batch:
-                await asyncio.to_thread(mark_document_complete, tender_id, document_name)
+                mark_document_complete(tender_id, document_name)
                 print(f"[{document_name}] 🎉 Document marked COMPLETE")
 
         except Exception as e:
