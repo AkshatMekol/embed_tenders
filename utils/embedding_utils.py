@@ -25,17 +25,11 @@
 
 import os
 import openai
-from utils.config import BATCH_SIZE
+from utils.config import BATCH_SIZE, OPENAI_API_KEY, EMBEDDING_MODEL
 
-# Set your OpenAI API key in environment variable
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-EMBEDDING_MODEL = "text-embedding-3-large"  # best embedding model
+openai.api_key = OPENAI_API_KEY
 
 def embed_batch(chunks):
-    """
-    Embed a batch of text chunks using OpenAI embeddings.
-    """
     texts = [c["data"] for c in chunks]
 
     # OpenAI embeddings support batch requests
