@@ -32,16 +32,15 @@ openai.api_key = OPENAI_API_KEY
 def embed_batch(chunks):
     texts = [c["data"] for c in chunks]
 
-    # OpenAI embeddings support batch requests
-    # Split into BATCH_SIZE to avoid large requests
     vectors = []
     for i in range(0, len(texts), BATCH_SIZE):
         batch_texts = texts[i:i+BATCH_SIZE]
-        response = openai.Embedding.create(
-            input=batch_texts,
-            model=EMBEDDING_MODEL
+        # NEW v1+ API
+        response = openai.embeddings.create(
+            model=EMBEDDING_MODEL,
+            input=batch_texts
         )
-        batch_vectors = [item["embedding"] for item in response["data"]]
+        batch_vectors = [item.embedding for item in response.data]
         vectors.extend(batch_vectors)
 
     out = []
