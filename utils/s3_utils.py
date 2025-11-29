@@ -1,7 +1,7 @@
 import boto3
-from io import BytesIO
-from .config import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET
 import asyncio
+from io import BytesIO
+from utils.config import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET
 
 _s3_client = boto3.client(
     "s3",
