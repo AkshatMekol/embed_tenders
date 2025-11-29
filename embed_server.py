@@ -1,18 +1,17 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from queue import Queue
-import threading
 import gc
+import threading
+from queue import Queue
+from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
 from utils.embedding_utils import embed_batch
 from utils.mongo_utils import store_embeddings_in_db, mark_document_complete
-import torch
 
 embedding_queue = Queue(maxsize=20000)
 STOP_SIGNAL = object()
 
 app = FastAPI(title="CPU Embedding Server")
 
-def embed_worker():
+def cpu_worker():
     print(f"🚀 CPU worker started")
 
     while True:
@@ -38,7 +37,7 @@ def embed_worker():
                 print(f"[{document_name}] 🎉 Document marked COMPLETE")
 
         except Exception as e:
-            print(f"[CPU WORKER] ❌ Error: {document_name}: {e}")
+            print(f"[GPU WORKER] ❌ Error: {document_name}: {e}")
 
         gc.collect()
         embedding_queue.task_done()
