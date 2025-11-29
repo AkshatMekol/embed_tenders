@@ -1,6 +1,6 @@
 from bson.objectid import ObjectId
 from pymongo import MongoClient, ReturnDocument
-from .config import MONGO_URI, DB_NAME, VECTOR_COLLECTION, TENDERS_COLLECTION, DOCS_STATUS_COLLECTION
+from utils.config import MONGO_URI, DB_NAME, VECTOR_COLLECTION, TENDERS_COLLECTION, DOCS_STATUS_COLLECTION
 
 mongo = MongoClient(MONGO_URI)
 db = mongo[DB_NAME]
