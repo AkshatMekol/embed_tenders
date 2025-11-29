@@ -4,8 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 SERVER_URL = "http://127.0.0.1:8000/process/"
 MIN_VALUE = 2000000000
-MAX_WORKERS = 4   # number of parallel workers
-
+MAX_WORKERS = 4  
 
 def process_tender(tender_id):
     url = SERVER_URL + tender_id
@@ -24,7 +23,6 @@ def process_tender(tender_id):
         print(f"❌ Tender {tender_id} error: {e}")
         return {"tender_id": tender_id, "error": str(e)}
 
-
 def main():
     print("Fetching tender IDs...")
     tender_ids = get_tender_ids(MIN_VALUE)
@@ -36,7 +34,6 @@ def main():
     results = []
     completed_count = 0
 
-    # Thread pool for sending tenders in parallel
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         future_to_tender = {executor.submit(process_tender, t): t for t in tender_ids}
 
@@ -51,7 +48,6 @@ def main():
             completed_count += 1
             print(f"Progress: {completed_count}/{total} done\n")
 
-    # ==================== FINAL SUMMARY ====================
     print("\n==================== FINAL SUMMARY ====================")
 
     total_docs = sum(r.get("processed_docs", 0) for r in results)
@@ -69,7 +65,6 @@ def main():
     print(f"Errors: {total_errors}")
 
     print("========================================================")
-
 
 if __name__ == "__main__":
     main()
