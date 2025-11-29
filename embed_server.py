@@ -11,7 +11,7 @@ STOP_SIGNAL = object()
 
 app = FastAPI(title="CPU Embedding Server")
 
-def gpu_worker():
+def cpu_worker():
     print(f"🚀 CPU worker started")
 
     while True:
