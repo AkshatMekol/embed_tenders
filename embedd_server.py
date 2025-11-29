@@ -1,20 +1,18 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from queue import Queue
-import threading
 import gc
+import threading
+from queue import Queue
+from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
 from utils.embedding_utils import embed_batch
 from utils.mongo_utils import store_embeddings_in_db, mark_document_complete
-import torch
 
 embedding_queue = Queue(maxsize=20000)
 STOP_SIGNAL = object()
 
-app = FastAPI(title="GPU Embedding Server")
+app = FastAPI(title="CPU Embedding Server")
 
 def gpu_worker():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"🚀 GPU worker started on: {device}")
+    print(f"🚀 CPU worker started")
 
     while True:
         task = embedding_queue.get()
