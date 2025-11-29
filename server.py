@@ -1,14 +1,14 @@
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import gc
-from io import BytesIO
 import asyncio
+import requests
+import pdfplumber
+from io import BytesIO
 from fastapi import FastAPI, HTTPException
+from utils.s3_utils import list_s3_pdfs, fetch_pdf
 from utils.pdf_processing import process_pdf_batch
 from utils.mongo_utils import vector_collection, is_document_complete
-from utils.s3_utils import list_s3_pdfs, fetch_pdf
-import pdfplumber
-import requests
 
 app = FastAPI()
 
@@ -29,8 +29,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# PDF_BATCH_SIZE = 10
-GPU_SERVER_URL = "http://127.0.0.1:9000/enqueue"
+EMBED_SERVER_URL = "http://127.0.0.1:9000/enqueue"
 
 async def process_single_tender(tender_id: str):
     print(f"\n===============================")
@@ -106,18 +105,18 @@ async def process_single_tender(tender_id: str):
                 report["regular_pages"] += regular
 
                 if chunks:
-                    print("   → Sending batch to GPU server...")
+                    print("   → Sending batch to EMBED server...")
                     try:
-                        resp = requests.post(GPU_SERVER_URL, json={
+                        resp = requests.post(EMBED_SERVER_URL, json={
                             "chunks": chunks,
                             "document_name": document_name,
                             "tender_id": tender_id,
                             "is_last_batch": is_last
                         })
-                        print(f"     GPU Response: {resp.status_code}")
+                        print(f"     EMBED Response: {resp.status_code}")
                     except Exception as e:
-                        print(f"❌ GPU enqueue failed: {e}")
-                        report["errors"].append(f"{document_name}: GPU error - {str(e)}")
+                        print(f"❌ EMBED enqueue failed: {e}")
+                        report["errors"].append(f"{document_name}: EMBED error - {str(e)}")
 
                 del chunks
                 resp.close()
