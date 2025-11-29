@@ -4,10 +4,6 @@ boto3
 botocore
 pdfplumber
 Pillow
-sentence-transformers
-torch
-numpy
-transformers
 pymongo
 requests
 groq
