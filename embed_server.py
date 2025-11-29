@@ -32,9 +32,6 @@ app.add_middleware(
 # PDF_BATCH_SIZE = 10
 GPU_SERVER_URL = "http://127.0.0.1:9000/enqueue"
 
-# =======================================================
-# MAIN WORKER LOGIC
-# =======================================================
 async def process_single_tender(tender_id: str):
     print(f"\n===============================")
     print(f"▶ START tender: {tender_id}")
@@ -137,10 +134,6 @@ async def process_single_tender(tender_id: str):
     print(f"\n🎯 Tender {tender_id} COMPLETED\n")
     return report
 
-
-# =======================================================
-# API ENDPOINT
-# =======================================================
 @app.post("/process/{tender_id}")
 async def route_process(tender_id: str):
     print(f"\n🌐 API CALL → /process/{tender_id}")
