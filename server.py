@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from utils.embedding_utils import embed_batch 
 from utils.s3_utils import list_s3_pdfs, fetch_pdf
 from utils.pdf_processing import process_pdf_batch
-from utils.mongo_utils import vector_collection, is_document_complete
+from utils.mongo_utils import vector_collection, is_document_complete, store_embeddings_in_db, mark_document_complete
 
 app = FastAPI()
 
@@ -108,21 +108,20 @@ async def process_single_tender(tender_id: str):
                         for c in chunks:
                             c["tender_id"] = tender_id
                             c["document_name"] = document_name
-
+                
                         embeddings = await asyncio.to_thread(embed_batch, chunks)
                         await asyncio.to_thread(store_embeddings_in_db, embeddings, document_name, tender_id)
                         print(f"[{document_name}] 🔹 Batch embedded & stored ({len(chunks)} chunks)")
+                
                         if is_last:
                             await asyncio.to_thread(mark_document_complete, tender_id, document_name)
                             print(f"[{document_name}] 🎉 Document marked COMPLETE")
-
+                
                     except Exception as e:
                         print(f"❌ Error embedding batch: {e}")
                         report["errors"].append(f"{document_name}: {str(e)}")
-
+                
                 del chunks
-                resp.close()
-                del resp
                 gc.collect()
 
             print(f"✔ Completed queuing document: {document_name}")
