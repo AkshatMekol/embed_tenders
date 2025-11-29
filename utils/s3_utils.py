@@ -3,7 +3,6 @@ from io import BytesIO
 from .config import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET
 import asyncio
 
-# Synchronous boto3 client
 _s3_client = boto3.client(
     "s3",
     aws_access_key_id=AWS_ACCESS_KEY_ID,
