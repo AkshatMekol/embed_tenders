@@ -17,7 +17,7 @@ def gpu_worker():
     while True:
         task = embedding_queue.get()
         if task is STOP_SIGNAL:
-            print("🛑 GPU worker stopping (STOP signal)")
+            print("🛑 CPU worker stopping (STOP signal)")
             break
 
         chunks, document_name, tender_id, is_last_batch = task
@@ -46,12 +46,12 @@ def gpu_worker():
 def start_worker():
     thread = threading.Thread(target=gpu_worker, daemon=True)
     thread.start()
-    print("✅ GPU worker thread started")
+    print("✅ CPU worker thread started")
 
 @app.on_event("shutdown")
 def stop_worker():
     embedding_queue.put(STOP_SIGNAL)
-    print("🛑 Stop signal sent to GPU worker")
+    print("🛑 Stop signal sent to CPU worker")
 
 class EmbedRequest(BaseModel):
     chunks: list
