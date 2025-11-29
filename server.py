@@ -6,6 +6,7 @@ import requests
 import pdfplumber
 from io import BytesIO
 from fastapi import FastAPI, HTTPException
+from utils.embedding_utils import embed_batch 
 from utils.s3_utils import list_s3_pdfs, fetch_pdf
 from utils.pdf_processing import process_pdf_batch
 from utils.mongo_utils import vector_collection, is_document_complete
@@ -28,8 +29,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-EMBED_SERVER_URL = "http://127.0.0.1:9000/enqueue"
 
 async def process_single_tender(tender_id: str):
     print(f"\n===============================")
@@ -105,18 +104,21 @@ async def process_single_tender(tender_id: str):
                 report["regular_pages"] += regular
 
                 if chunks:
-                    print("   → Sending batch to EMBED server...")
                     try:
-                        resp = requests.post(EMBED_SERVER_URL, json={
-                            "chunks": chunks,
-                            "document_name": document_name,
-                            "tender_id": tender_id,
-                            "is_last_batch": is_last
-                        })
-                        print(f"     EMBED Response: {resp.status_code}")
+                        for c in chunks:
+                            c["tender_id"] = tender_id
+                            c["document_name"] = document_name
+
+                        embeddings = await asyncio.to_thread(embed_batch, chunks)
+                        await asyncio.to_thread(store_embeddings_in_db, embeddings, document_name, tender_id)
+                        print(f"[{document_name}] 🔹 Batch embedded & stored ({len(chunks)} chunks)")
+                        if is_last:
+                            await asyncio.to_thread(mark_document_complete, tender_id, document_name)
+                            print(f"[{document_name}] 🎉 Document marked COMPLETE")
+
                     except Exception as e:
-                        print(f"❌ EMBED enqueue failed: {e}")
-                        report["errors"].append(f"{document_name}: EMBED error - {str(e)}")
+                        print(f"❌ Error embedding batch: {e}")
+                        report["errors"].append(f"{document_name}: {str(e)}")
 
                 del chunks
                 resp.close()
