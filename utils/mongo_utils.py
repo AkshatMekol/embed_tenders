@@ -1,5 +1,5 @@
-from pymongo import MongoClient, ReturnDocument
 from bson.objectid import ObjectId
+from pymongo import MongoClient, ReturnDocument
 from utils.config import MONGO_URI, DB_NAME, VECTOR_COLLECTION, TENDERS_COLLECTION, DOCS_STATUS_COLLECTION
 
 mongo = MongoClient(MONGO_URI)
@@ -8,7 +8,6 @@ db = mongo[DB_NAME]
 vector_collection = db[VECTOR_COLLECTION]
 tenders_collection = db[TENDERS_COLLECTION]
 docs_status_collection = db[DOCS_STATUS_COLLECTION]
-
 ALLOWED_INDUSTRIES = ["Water & Sanitation", "Power & Energy"]
 
 def store_embeddings_in_db(embeddings, document_name, tender_id):
@@ -21,7 +20,7 @@ def get_tender_ids(min_value):
     cursor = tenders_collection.find(
         {
             "tender_value": {"$gte": min_value},
-            "industries": {"$in": ALLOWED_INDUSTRIES}  # filter by industries
+            "industries": {"$in": ALLOWED_INDUSTRIES}  
         },
         {"_id": 1}
     )
@@ -34,7 +33,6 @@ def is_document_complete(tender_id, document_name):
     return record is not None
 
 def mark_document_complete(tender_id, document_name):
-    # Add document to array if not already present
     docs_status_collection.update_one(
         {"tender_id": tender_id},
         {"$addToSet": {"completed_documents": document_name}},
