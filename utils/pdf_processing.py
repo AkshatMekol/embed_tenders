@@ -15,7 +15,6 @@ async def groq_worker(job, semaphore):
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, process_scanned_page_worker, job)
 
-
 async def deepseek_worker(job, semaphore):
     async with semaphore:
         loop = asyncio.get_running_loop()
@@ -25,7 +24,6 @@ async def deepseek_worker(job, semaphore):
         )
         gc.collect()
         return sub_chunks
-
 
 async def send_to_embed(chunks_batch, tender_id, is_last=False):
     try:
