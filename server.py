@@ -29,8 +29,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-EMBED_SERVER_URL = "http://127.0.0.1:9000/enqueue"
-
 async def process_single_tender(tender_id: str):
     print(f"\n===============================")
     print(f"▶ START tender: {tender_id}")
@@ -40,9 +38,9 @@ async def process_single_tender(tender_id: str):
         "tender_id": tender_id,
         "processed_docs": 0,
         "skipped_docs": 0,
-        "empty_docs": 0,
         "scanned_pages": 0,
         "regular_pages": 0,
+        "total_chunks": 0,
         "errors": []
     }
 
@@ -56,11 +54,11 @@ async def process_single_tender(tender_id: str):
         document_name = os.path.basename(pdf_key)
         print(f"📄 Document: {document_name}")
 
-       if await asyncio.to_thread(is_document_complete, tender_id, document_name):
+        if await asyncio.to_thread(is_document_complete, tender_id, document_name):
             print(f"⏩ Already processed, skipping")
             report["skipped_docs"] += 1
             continue
-        
+
         await asyncio.to_thread(
             vector_collection.delete_many,
             {"tender_id": tender_id, "document_name": document_name}
@@ -72,59 +70,14 @@ async def process_single_tender(tender_id: str):
             pdf_stream = await fetch_pdf(pdf_key)
             pdf_bytes = pdf_stream.read()
 
-            total_pages = await asyncio.to_thread(
-                lambda: len(pdfplumber.open(BytesIO(pdf_bytes)).pages)
-            )
-            print(f"📄 Total pages: {total_pages}")
+            scanned, regular, total_chunks = await process_pdf(pdf_bytes, document_name, tender_id)
 
-            if total_pages == 0:
-                print("⚠ Empty PDF, skipping")
-                report["empty_docs"] += 1
-                continue
-
-            file_size_kb = len(pdf_bytes) / 1024
-            size_per_page_kb = file_size_kb / max(total_pages, 1)
-            if size_per_page_kb < 250:
-                batch_size = 20
-            else:
-                batch_size = 5
-            print(f"📦 Dynamic batch size = {batch_size} (size_per_page={size_per_page_kb:.1f} KB)")
-
-            for start in range(0, total_pages, batch_size):
-                end = min(start + batch_size, total_pages)
-                is_last = (end >= total_pages)
-                print(f"🔹 Page batch: {start} → {end} (last={is_last})")
-
-                chunks, scanned, regular = await process_pdf_batch(
-                    pdf_bytes, start, end
-                )
-
-                print(f"   • Chunks = {len(chunks)} | Scanned = {scanned} | Regular = {regular}")
-
-                report["scanned_pages"] += scanned
-                report["regular_pages"] += regular
-
-                if chunks:
-                    print("   → Sending batch to Embed server...")
-                    try:
-                        resp = requests.post(EMBED_SERVER_URL, json={
-                            "chunks": chunks,
-                            "document_name": document_name,
-                            "tender_id": tender_id,
-                            "is_last_batch": is_last
-                        })
-                        print(f"     EMBED SERVER Response: {resp.status_code}")
-                    except Exception as e:
-                        print(f"❌ EMBED enqueue failed: {e}")
-                        report["errors"].append(f"{document_name}: EMBED error - {str(e)}")
-
-                del chunks
-                resp.close()
-                del resp
-                gc.collect()
-
-            print(f"✔ Completed queuing document: {document_name}")
+            report["scanned_pages"] += scanned
+            report["regular_pages"] += regular
+            report["total_chunks"] += total_chunks
             report["processed_docs"] += 1
+
+            print(f"✔ Completed PDF: {document_name} | Scanned={scanned}, Regular={regular}, Chunks={total_chunks}")
 
         except Exception as e:
             print(f"❌ Error processing {document_name}: {e}")
