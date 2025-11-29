@@ -1,5 +1,4 @@
 import os
-import torch
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,14 +20,10 @@ TENDERS_COLLECTION = os.getenv("TENDERS_COLLECTION")
 VECTOR_COLLECTION = os.getenv("VECTOR_COLLECTION")
 DOCS_STATUS_COLLECTION = os.getenv("DOCS_STATUS_COLLECTION")
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-EMBEDDING_DIM = 384
 BATCH_SIZE = 512
 
 MAX_PROCESSES_GROQ = 5
 MAX_PROCESSES_DEEPSEEK = 10
-PDF_BATCH_SIZE = 20
 
 GROQ_OCR_PROMPT = """
 Extract all text from this scanned page exactly as it appears on the page.
