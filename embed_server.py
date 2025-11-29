@@ -44,7 +44,7 @@ def gpu_worker():
 
 @app.on_event("startup")
 def start_worker():
-    thread = threading.Thread(target=gpu_worker, daemon=True)
+    thread = threading.Thread(target=cpu_worker, daemon=True)
     thread.start()
     print("✅ CPU worker thread started")
 
